@@ -1,0 +1,1753 @@
+# Importaciones calculos y graficos
+import numpy as np 
+import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+from matplotlib.patches import Arc
+from io import BytesIO
+from reportlab.platypus import Image
+
+# Importaciones informe:
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import Table, TableStyle
+from reportlab.lib import colors
+from reportlab.platypus import PageBreak
+from reportlab.platypus import Image
+import tempfile
+
+print("VERIFICACION DE ZAPATAS CONCENTRICAS ENFOQUE NEC\n")
+
+#Datos del Proyecto:
+
+Proyecto = "Ejemplo NEC"
+Ubicacion = "Quito, Ecuador"
+Fecha = "22 de abril de 2025"
+Usuario = "Juan Pérez"
+
+
+#Introduccion de Datos:
+
+Ps = 1445.65   #Carga Axial en servicio [KN]
+Msx = -5.134    #Momento respecto a x en servicio [KN*m]
+Msy = -218.346  #Momento respecto a y en servicio [KN*m]
+Pu = 1795.97   #Carga Axal ultima [KN]
+Mux = -218.51   #Momento ultimo respecto a x [Kn*m]
+Muy = -180.75   #Momento ultimo respecto a y [Kn*m]
+qa = 300       #Esfuerzo admisible del suelo [KPa], de ser combinación sisimica aumentar 33% a qadmisible
+Df = 2.0       #Profundidad de desplante [m]
+B = 2.65	   #Lado mayor de la zapata seleccionado [m]
+L = 2.65       #Lado menor de la zapata seleccionado [m]
+rec = 0.05     #Recubrimiento al eje del acero [m]
+hzapata = 0.60 #Peralte seleccionado de la zapata [m]
+bcol = 0.5 	   #Dimension b de la columna (Y) [m]
+hcol = 0.5     #Dimension h de la columna (X) [m]
+fc = 23.54     #Resistencia a compresion del hormigon [MPa]
+fy = 420       #Esfuerzo de fluenzia del acero de refuerzo [Mpa] 
+Dvarilla = 20  #Diametro de la varilla a emplearse [mm]      
+
+Mostrar_graficos = 'No' #Mostrar o no mostrar Graficos (Opciones [Si/No])
+Ubicacion_Columna = 'I' # (Opciones [I (Interior),B (Borde),E (Esquina)])
+
+
+#Predimensionamiento de la zapata:
+
+Acalc = round(1.10*Ps/qa,2)
+Bcalc = round(Acalc**(1/2),2)
+Lcalc = round(Acalc**(1/2),2)
+dcalc = Bcalc/5;
+hcalc = round(dcalc + rec ,2)
+A=round(B*L,2)
+d = round(hzapata-rec,3) #Peralte efectivo de la seccion [m]
+
+
+print("Dimensiones de predimensionamiento:\n")
+print("Acalc =",Acalc,"[m2]")
+print("Bcalc =",Bcalc,"[m]")
+print("Lcalc =",Lcalc,"[m]")
+print("hcalc = ", hcalc,"[m]\n")
+print("Dimensiones de Diseño:\n")
+print("A",A,"[m2]")
+print("B =",B,"[m]")
+print("L =",L,"[m]")
+print("h =",hzapata,"[m]")
+print("d =",d,"[m]\n")
+
+#Calculo de esfuerzos de servicio bajo el suelo sentido B:
+
+print("Esfuerzos de servicio en B:\n")
+LimExcy = round(B/6,2)
+ey = round(np.abs(Msy)/Ps,3)
+print("Limite de excentricidad (B/6) = ", LimExcy,"[m]")
+print("Excentricidad ey = ", ey,"[m]")
+qs1y=round(Ps/A*(1+6*ey/B),2)
+qs2y=round(Ps/A*(1-6*ey/B),2)
+print("qs1y = ", qs1y,"[KPa]")
+print("qs2y = ", qs2y,"[KPa]")
+if max(qs1y,qs2y)<qa:
+	print("*OK:","Los esfuerzos en el suelo son MENORES que el esfuerzo admisible")
+else:
+	print("*ERROR:""Los esfuerzos en el suelo son MAYORES que el esfuerzo admisible")
+if LimExcy > ey:
+	print("*OK:","Todos los esfuerzos son en compresion para el Momento en y")
+	a_B = B
+	print("Longitud efectiva de contacto (a)=",a_B,"[m]\n")
+else: 
+	print("*AVISO:","*Existen esfuerzos a traccion para sentido para el Momento en  y ")
+	a_B = 3*(B/2-ey)
+	print("Longitud efectiva de contacto (a)=",a_B,"[m]\n")
+
+
+#Calculo de esfuerzos de servicio bajo el suelo sentido L:
+
+print("Esfuerzos de servicio en L:\n")
+LimExcx = round(L/6,2)
+ex = round(np.abs(Msx)/Ps,3)
+print("Limite de excentricidad (L/6) = ", LimExcy,"[m]")
+print("Excentricidad ex = ",ex, "[m]")
+qs1x=round(Ps/A*(1+6*ex/B),2)
+qs2x=round(Ps/A*(1-6*ex/B),2)
+print("qs1x = ", qs1x,"[KPa]")
+print("qs2x = ", qs2x,"[KPa]")
+if max(qs1x,qs2x)<qa:
+	print("*OK:","Los esfuerzos en el suelo son MENORES que el esfuerzo admisible")
+else:
+	print("*ERROR:""Los esfuerzos en el suelo son MAYORES que el esfuerzo admisible")
+if LimExcx > ex:
+	print("*OK:","Todos los esfuerzos son en compresion para el Momento en y")
+	a_L = L
+	print("Longitud efectiva de contacto (a)=",a_L,"[m]\n")
+else: 
+	print("*AVISO:","*Existen esfuerzos a traccion para sentido para el Momento en  y ")
+	a_L = 3*(L/2-ex)
+	print("Longitud efectiva de contacto (a)=",a_L,"[m]\n")
+
+
+#DISEÑO DE LA ZAPATA:
+
+#Esfuerzos Ultimo sentido B
+
+euy = round(np.abs(Muy)/Pu,3);
+qu1y = round(Pu/A*(1+6*euy/L),2)
+qu2y = round(Pu/A*(1-6*euy/L),2)
+print("Esfuerzos Ultimos de la zapata en B:\n")
+print("Excentricidad euy=",euy,"[m]")
+print("qu1y",qu1y,"[KN/m2]")
+print("qu2y",qu2y,"[KN/m2]")
+print("Longitud efectiva de contacto (a)=",a_B,"[m]\n")
+
+#Esfuerzos Ultimo sentido L
+eux = round(np.abs(Mux)/Pu,3);
+qu1x = round(Pu/A*(1+6*eux/B),2)
+qu2x = round(Pu/A*(1-6*eux/B),2)
+print("Esfuerzos Ultimos de la zapata en L:\n")
+print("Excentricidad eux=",eux,"[m]")
+print("qu1x",qu1x,"[KN/m2]")
+print("qu2x",qu2x,"[KN/m2]")
+print("Longitud efectiva de contacto (a)=",a_L,"[m]\n")
+
+#ANCHOS DE ANALISIS
+
+Ala_x = B/2 - bcol/2    #Determinacion de ala x
+Ala_y = L/2 - hcol/2
+print("ANCHOS DE ANALISIS:\n")
+print("Ala_x=",Ala_x,"[m]")
+print("Ala_y=",Ala_y,"[m]\n")
+
+#VERIFICACION DE CORTANTE UNIDIRECCIONAL
+
+#Corte Unidireccional Sentido B:
+
+qumaxy = max(qu2y,qu1y) #Determinacion de esfuerzo maximo 
+quminy = min(qu2y,qu1y) #Determinacion de esfuerzo de minimo
+
+cB = round(Ala_x-d,2) 	 #Corte de analisis de cortante en B
+DcB = a_B-cB 	 #Distancia a corte de analisis en B
+q1aB = round(((qumaxy-quminy)/(a_B)*DcB)+quminy,2)   #Esfuerzo actuante en el corte de analisis B
+V1aB = round(q1aB*L*cB,2)
+FiVnB = round(0.75*np.sqrt(fc)/6*L*d*10**3,2)
+
+print("VERIFICACIN DE CORTANTE UNIDIRECCIONAL SENTIDO B:\n")
+print("Esfuerzo cortante actuante unidereccional en B qaB=",q1aB,"[KN/m2]")
+print("Fuerza cortante actuante unidereccional en B V1aB=",V1aB,"[KN]")
+print("Fuerza cortante resistente unidereccional en B FiVnB=",FiVnB,"[KN]")
+if FiVnB > V1aB:
+	VerifVB = "La zapata resistente el cortante unidrireccional en el sentido B"
+	print(FiVnB,">",V1aB)
+else:
+	VerifVB = "La zapata falla por cortante unidireccional en el sentido B"
+	print(FiVnB,"<",V1aB)
+print("Veficacion:",VerifVB,"\n")
+
+
+#Corte Unidireccional Sentido L:
+
+qumaxx = max(qu2x,qu1x) #Determinacion de esfuerzo maximo 
+quminx = min(qu2x,qu1x) #Determinacion de esfuerzo de minimo
+
+cL = round(Ala_y-d,2) 	 #Corte de analisis de cortante en B
+DcL = a_L-cL 	 #Distancia a corte de analisis en B
+q1aL = round(((qumaxx-quminx)/(a_L)*DcL)+quminx,2)   #Esfuerzo actuante en el corte de analisis B
+V1aL = round(q1aL*B*cL,2)
+FiVnL = round(0.75*np.sqrt(fc)/6*B*d*10**3,2)
+
+
+print("VERIFICACIN DE CORTANTE UNIDIRECCIONAL SENTIDO L:\n")
+print("Esfuerzo cortante actuante unidereccional en L qaL=",q1aL,"[KN/m2]")
+print("Fuerza cortante actuante unidereccional en L V1aL=",V1aL,"[KN]")
+print("Fuerza cortante resistente unidereccional en L FiVnL=",FiVnL,"[KN]")
+if FiVnL > V1aL:
+	VerifVL = "La zapata resistente el cortante unidrireccional en el sentido L"
+	print(FiVnL,">",V1aL)
+else:
+	VerifVL = "La zapata falla por cortante unidireccional en el sentido L"
+	print(FiVnL,"<",V1aL)
+print("Veficacion:",VerifVL,"\n")
+
+#VERIFICACION DE CORTE POR PUNZONAMIENTO
+#Solicitacion a cortante por punzonamiento:
+
+Beff = bcol + 2*d
+Leff = hcol + 2*d 
+Aeff = round(B*L - Beff*Leff,2)
+bo = 2*(bcol+d)+2*(hcol+d)
+
+#Calculo de esfuerzos
+
+qumax= max(qumaxx,qumaxy)
+qumin = min(quminx,quminy)
+
+if qumaxx>qumaxy:
+	c = round(Ala_x-d/2,2) 	 #Corte de analisis de cortante en B
+	D = a_B-c 	 #Distancia a corte de analisis
+	qabid = round(((qumax-qumin)/(a_B)*D)+qumin,2)
+else:
+	c = round(Ala_y-d/2,2) 	 #Corte de analisis de cortante en B
+	D = a_B-c 	 #Distancia a corte de analisis
+	qabid = round(((qumax-qumin)/(a_L)*D)+qumin,2)
+	
+V2a = round(qabid*Aeff,2)
+
+#Calculo de cortante vidireccional resistete
+#Ubicacion_Columna = 'I' # (Opciones [I (Interior),B (Borde),E (Esquina)])
+
+Beta = max(L,B)/min(L,B)
+
+if Ubicacion_Columna == "I":
+	alpha = 0.4
+elif Ubicacion_Columna == "B":
+	alpha = 0.3
+elif Ubicacion_Columna == "E":
+	alpha = 0.2
+
+print(alpha)
+Vc1 = 0.33*np.sqrt(fc)*10**3
+Vc2 = 0.17*(1+2/Beta)*np.sqrt(fc)*10**3
+Vc3 = 0.083*(2+(alpha*d)/bo)*np.sqrt(fc)*10**3
+Vcmin = min(Vc1,Vc2,Vc3)
+fiVcbid = round(0.75*Vcmin*bo*d,2)
+
+print("VERIFICACIN DE CORTANTE POR PUNZONTAMIENTO:\n")
+print("Area efectiva Aeff=", Aeff,"[m2]")
+print("Perimetro de la seccion critica bo =", bo,"[m]")
+print("Esfuerzo actuante bidireccional qabid =",qabid,"[KN/m2]")
+print("Fuerza cortante actuante V2a =",V2a,"[KN]")
+print("Fuerza cortante resistente fiVcbid=",fiVcbid,"[KN]")
+
+if fiVcbid > V2a:
+	VerifVbid = "La zapata resistente el cortante por punzonamiento"
+	print(fiVcbid,">",V2a)
+else:
+	VerifVbid = "La zapata falla a cortante por punzonamiento"
+	print(fiVcbid,"<",V2a)
+
+print("Veficacion:",VerifVbid,"\n")
+
+
+#DISENO A FLEXION 
+
+bunitario = 1.0 #[m]
+Asminx = 0.0018*420/fy*bunitario*d*100**2
+Asminy = 0.0018*420/fy*bunitario*(d-Dvarilla/1000)*100**2
+
+#Analisis en sentido B (Ala_x)
+
+quMx = round(((qumaxx-quminx)/(a_B)*(B-Ala_x/2))+quminx,2)
+AMx = round(Ala_x*L,2)
+FMx = round(quMx*AMx,2)
+MomUx = round(FMx*Ala_x/2,2)
+MomUxUnit = round(MomUx/B,2)
+Asreqx = round((0.9*d-np.sqrt(0.81*d**2-(1.8*MomUxUnit*0.001)/(0.85*fc*bunitario)))/((0.9*fy)/(0.85*fc*bunitario))*100**2,2)
+Asx = round(max(Asreqx,Asminx),2)
+Nbarrasunitx = np.ceil(Asx/(np.pi/4*(Dvarilla/10)**2))
+Espaciamientox = ((bunitario*100)/Nbarrasunitx)
+Nbarrasx = np.ceil(Nbarrasunitx*B)
+
+
+print("DISENO A FLEXION SENTIDO B:\n")
+print("quMx = ",quMx,"[KN/m2]")
+print("AMx = ",AMx,"[m2]")
+print("FMx = ",FMx,"[KN]")
+print("MomUx = ",MomUx,"[KN*m]")
+print("Momento Unitario MOMUX = ",MomUxUnit,"[KN*m]")
+print("Asminx = ",Asminx,"[cm2/m]")
+print("Areqx = ",Asreqx,"[cm2/m]")
+print("Asx = ",Asx,"[cm2/m]")
+print("#Diametro de varilla = ",Dvarilla,"[mm]")
+print("#BarrasUnitx = ",Nbarrasunitx,"[u/m]")
+print("#Barrasx = ",Nbarrasx,"[u]")
+print("#Espaciamientox = ",Espaciamientox,"[cm]")
+print("Refuerzo en sentido B:\n",1,"Φ",Dvarilla,"@",Espaciamientox,"[cm]\n")
+
+#Analisis en sentido L (Ala_y)
+
+quMy = round(((qumaxy-quminy)/(a_L)*(L-Ala_y/2))+quminy,2)
+AMy = round(Ala_y*B,2)
+FMy = round(quMy*AMy,2)
+MomUy =round(FMy*Ala_y/2,2)
+MomUyUnit = round(MomUy/L,2)
+Asreqy = round((0.9*(d-Dvarilla/1000)-np.sqrt(0.81*(d-Dvarilla/1000)**2-(1.8*MomUyUnit*0.001)/(0.85*fc*bunitario)))/((0.9*fy)/(0.85*fc*bunitario))*100**2,2)
+Asy = round(max(Asreqy,Asminy),2)
+Nbarrasunity = np.ceil(Asy/(np.pi/4*(Dvarilla/10)**2))
+Espaciamientoy = ((bunitario*100)/Nbarrasunity)
+Nbarrasy = np.ceil(Nbarrasunity*L)
+
+print("DISENO A FLEXION SENTIDO L:\n")
+print("quMy = ",quMy,"[KN/m2]")
+print("AMy = ",AMy,"[m2]")
+print("FMy = ",FMy,"[KN]")
+print("MomUx = ",MomUy,"[KN*m]")
+print("Momento Unitario MOMUY = ",MomUyUnit,"[KN*m]")
+print("Asminy = ",Asminy,"[cm2/m]")
+print("Areqy = ",Asreqy,"[cm2/m]")
+print("Asy = ",Asy,"[cm2/m]")
+print("#Diametro de varilla = ",Dvarilla,"[mm]")
+print("#BarrasUnity = ",Nbarrasunity,"[u/m]")
+print("#Barrasy = ",Nbarrasy,"[u]")
+print("#Espaciamientoy = ",Espaciamientoy,"[cm]")
+print("Refuerzo en sentido L:\n",1,"Φ",Dvarilla,"@",Espaciamientoy,"[cm]\n")
+
+#LONGITUD DE DESARROLLO
+if d<0.3:
+	PsiT = 1.3
+else:
+	PsiT = 1
+
+PsiE = 1
+Lamnda = 1
+
+if Dvarilla < 20:
+	Ld = round(((fy*PsiT*PsiE)/(2.1*Lamnda*np.sqrt(fc)))*Dvarilla/1000,2)
+else:
+	Ld = round(((fy*PsiT*PsiE)/(1.7*Lamnda*np.sqrt(fc)))*Dvarilla/1000,2)
+
+Ala_max = max(Ala_x,Ala_y)
+
+if Ld>Ala_max:
+	VerifLd = "Los aceros requieren ganchos en los extremos"
+else:
+	VerifLd = "Los aceros NO requieren ganchos en los extremos"
+
+#LONGITUD DE GANCHO
+Lg = 12*Dvarilla/1000
+
+print("LONGITUD DE DESARROLLO")
+print("Ld=",Ld,"[m]")
+print("Aviso1:",VerifLd)
+print("Aviso1:","Queda a criterio del usuario colocar o no ganchos en los extremos")
+print("Longitud de gancho:",Lg,"[m]")
+
+
+
+
+####################################################  GRAFICACION  ######################################################################
+
+######### PLANTA #########
+
+#GRAFICACION ZAPATA
+
+fig, ax = plt.subplots()
+fig.canvas.manager.set_window_title("Vista en planta")
+zapata = patches.Rectangle((0, 0), B, L, linewidth=1, edgecolor='black', facecolor='lightgray')
+
+#GRAFICACION COLUMNA
+
+PosicionXcol = B/2 -bcol/2
+PosicionYcol = L/2 -hcol/2
+columna = patches.Rectangle((PosicionXcol, PosicionYcol), bcol, hcol, linewidth=1, edgecolor='black', facecolor='gray')
+ax.add_patch(zapata)
+ax.add_patch(columna)
+ax.set_xlim(-1, B + 1)
+ax.set_ylim(-1, L + 1)
+ax.set_aspect('equal')
+
+#COTAS ZAPATA
+
+#COTA B
+ax.plot([0, 0], [0, -0.5], color='blue', lw=1)  # Línea de cota izquierda
+ax.plot([B, B], [0, -0.5], color='blue', lw=1)  # Línea de cota derecha
+ax.plot([0, B], [-0.375, -0.375], color='blue', lw=1)  # Línea horizontal de cota
+ax.plot(0, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax.plot(B, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax.text(B/2, -0.5, f'{B} m', ha='center', va='center', fontsize=8.5,fontweight='bold',color='blue')
+
+#COTA L
+ax.plot([0, -0.5], [0, 0], color='blue', lw=1)  # Línea de cota inferior
+ax.plot([0, -0.5], [L, L], color='blue', lw=1)  # Línea de cota superior
+ax.plot([-0.375, -0.375], [0, L], color='blue', lw=1)  # Línea vertical de cota
+ax.plot(-0.375, L, 'bo',markersize=3)  # Punto en la intersección superior
+ax.plot(-0.375, 0, 'bo',markersize=3)  # Punto en la intersección inferior
+ax.text(-0.5, L / 2, f'{L} m', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=90,color='blue')
+
+#COTAS LA COLUMNA
+
+#COTA bcol
+ax.plot([PosicionXcol, PosicionXcol], [PosicionYcol, PosicionYcol-0.375], color='blue', lw=1)  # Línea de cota izquierda
+ax.plot([PosicionXcol+bcol, PosicionXcol+bcol], [PosicionYcol, PosicionYcol-0.375], color='blue', lw=1)  # Línea de cota derecha
+ax.plot([PosicionXcol,PosicionXcol+bcol ], [PosicionXcol-0.250, PosicionXcol-0.250], color='blue', lw=1)  # Línea horizontal de cota
+ax.plot(PosicionXcol, PosicionXcol-0.250, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax.plot(PosicionXcol+bcol, PosicionXcol-0.250, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax.text(B/2, PosicionXcol-0.4, f'{bcol} m', ha='center', va='center', fontsize=8.5,fontweight='bold',color='blue')
+
+#COTA hcol
+
+ax.plot([PosicionXcol, PosicionXcol-0.375], [PosicionYcol, PosicionYcol], color='blue', lw=1)  # Línea de cota izquierda
+ax.plot([PosicionXcol, PosicionXcol-0.375], [PosicionYcol+hcol, PosicionYcol+hcol], color='blue', lw=1)  # Línea de cota derecha
+ax.plot([PosicionXcol-0.25,PosicionXcol-0.25 ], [PosicionYcol, PosicionYcol+hcol], color='blue', lw=1)  # Línea horizontal de cota
+ax.plot(PosicionXcol-0.25, PosicionYcol, 'bo',markersize=3)  # Punto en la intersección superior
+ax.plot(PosicionXcol-0.25, PosicionYcol+hcol, 'bo',markersize=3)  # Punto en la intersección inferior
+ax.text(PosicionXcol-0.42, L/2, f'{hcol} m', ha='center', va='center', fontsize=8.5,fontweight='bold', rotation=90,color='blue')
+plt.axis('off')
+
+#Graficacion de aceros
+
+ax.vlines(B-0.2, 0.2, L-0.2, color='red', linewidth=1.5) #linea vertical de aceros en sentido perpendicular a B
+ax.hlines(0.2, B-0.2, B-0.2-Lg, color='red', linewidth=1.5) #linea Horizontal de gancho 1 en sentido perpendicular a B
+ax.hlines(L-0.2, B-0.2, B-0.2-Lg, color='red', linewidth=1.5) #linea Horizontal de gancho 2 en sentido perpendicular a B
+
+ax.text(B-0.35, L/2, f'1 Φ {Dvarilla} @ {Espaciamientox} cm', ha='center', va='center', fontsize=7, rotation=90, color='red')
+
+ax.hlines(L-0.30, 0.1, B-0.1, color='red', linewidth=1.5) #linea Horizontal de aceros en sentido perpendicular a L
+ax.vlines(0.1, L-0.3, L-0.3-Lg, color='red', linewidth=1.5) #linea Vertical de gancho 1 en sentido perpendicular a L
+ax.vlines(B-0.1, L-0.3, L-0.3-Lg, color='red', linewidth=1.5) #linea vertical de gancho 2 en sentido perpendicular a L
+
+ax.text(B/2, L-0.20, f'1 Φ {Dvarilla} @ {Espaciamientoy} cm', ha='center', va='center', fontsize=7, color='red')
+
+#ASPECTO
+plt.gca().set_aspect('equal', adjustable='box')  # Asegura que la proporción de la figura sea correcta
+plt.title("Vista en planta",fontsize=16,fontweight='bold')
+
+ax.text(B+0.2, L, f'Asminx= {Asminx} [cm2]', ha='left', va='center', fontsize=7, color='black')
+ax.text(B+0.2, L-0.2, f'Asminy= {Asminy} [cm2]', ha='left', va='center', fontsize=7, color='black')
+ax.text(B+0.2, L-0.4, f'Asreqx= {Asreqx} [cm2]', ha='left', va='center', fontsize=7, color='black')
+ax.text(B+0.2, L-0.6, f'Asreqy= {Asreqy} [cm2]', ha='left', va='center', fontsize=7, color='black')
+
+#Gaurdado en archivo temporal:
+
+buf_planta1 = BytesIO()
+fig.savefig(buf_planta1, format='png', dpi=300, bbox_inches='tight')
+buf_planta1.seek(0)
+img_planta1 = Image(buf_planta1, width=400, height=300)  
+
+######### ELEVACION B #########
+
+
+fig, ax1 = plt.subplots()
+fig.canvas.manager.set_window_title("Elevacion B")
+fig.suptitle("Elevacion B", fontsize=16, fontweight='bold')
+
+zapataElevB = patches.Rectangle((0,0),B,hzapata,linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevB = patches.Rectangle((B/2-hcol/2,hzapata),hcol,Df-hzapata,linewidth=1, edgecolor='black', facecolor='gray')
+ax1.hlines(Df,-1,B+1,linestyles='dashed', linewidth=1.5,edgecolor="black")
+
+#Cota B
+ax1.plot([0, 0], [0, -0.5], color='blue', lw=1)  # Línea de cota izquierda
+ax1.plot([B, B], [0, -0.5], color='blue', lw=1)  # Línea de cota derecha
+ax1.plot([0, B], [-0.375, -0.375], color='blue', lw=1)  # Línea horizontal de cota
+ax1.plot(0, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax1.plot(B, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax1.text(B/2, -0.5, f'{B} m', ha='center', va='center', fontsize=8.5,fontweight='bold',color='blue')
+
+#Cota Columna
+ax1.plot([B/2-hcol/2,B/2-hcol/2, ], [Df,Df+0.375], color='blue', lw=1)  # Línea de cota izquierda
+ax1.plot([B/2+hcol/2,B/2+hcol/2, ], [Df,Df+0.375], color='blue', lw=1)  # Línea de cota derecha
+ax1.plot([B/2-hcol/2, B/2+hcol/2], [Df+0.25, Df+0.25], color='blue', lw=1)  # Línea horizontal de cota
+ax1.plot(B/2-hcol/2, Df+0.25, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax1.plot(B/2+hcol/2, Df+0.25, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax1.text(B/2, Df+0.375, f'{hcol} m', ha='center', va='center', fontsize=8.5,fontweight='bold',color='blue')
+
+#Cota Profundidad de desplante
+ax1.plot([0, -0.5], [0, 0], color='blue', lw=1)  # Línea de cota inferior
+ax1.plot([0, -0.5], [Df, Df], color='blue', lw=1)  # Línea de cota superior
+ax1.plot([-0.375, -0.375], [0, Df], color='blue', lw=1)  # Línea vertical de cota
+ax1.plot(-0.375, Df, 'bo',markersize=3)  # Punto en la intersección superior
+ax1.plot(-0.375, 0, 'bo',markersize=3)  # Punto en la intersección inferior
+ax1.text(-0.5, Df / 2, f'{Df} m', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=90,color='blue')
+ax1.text(B, Df+0.125, 'Nv = +0.00', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=0,color='black')
+
+#Cota Peralte de zapata 
+ax1.plot([B, B+0.5], [0, 0], color='blue', lw=1)  # Línea de cota inferior
+ax1.plot([B, B+0.5], [hzapata, hzapata], color='blue', lw=1)  # Línea de cota superior
+ax1.plot([B+0.375, B+0.375], [0, hzapata], color='blue', lw=1)  # Línea vertical de cota
+ax1.plot(B+0.375, 0, 'bo',markersize=3)  # Punto en la intersección superior
+ax1.plot(B+0.375, hzapata, 'bo',markersize=3)  # Punto en la intersección inferior
+ax1.text(B+0.5, hzapata / 2, f'{hzapata} m', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=90,color='blue')
+
+#GRAFICACION DE ACERO DE REFUERZO
+
+ax1.hlines(rec, rec, B-rec, color='red', linewidth=1.5) #linea horizontal de aceros en sentido paralelo a B
+ax1.vlines(rec, rec, rec+Lg, color='red', linewidth=1.5) #linea horizontal de aceros en sentido paralelo a B
+ax1.vlines(B-rec, rec, rec+Lg, color='red', linewidth=1.5) #linea horizontal de aceros en sentido paralelo a B
+ax1.text(B/2, rec+0.05, f'1 Φ {Dvarilla} @ {Espaciamientox} cm', ha='center', va='center', fontsize=7, color='red')
+
+ax1.add_patch(zapataElevB)
+ax1.add_patch(ColElevB)
+ax1.set_xlim(-1, B + 1)
+ax1.set_ylim(-1, Df + 1)
+ax1.set_aspect('equal')
+plt.axis('off')
+
+#Gaurdado en archivo temporal:
+
+buf_ElevB = BytesIO()
+fig.savefig(buf_ElevB, format='png', dpi=300, bbox_inches='tight')
+buf_ElevB.seek(0)
+img_ElevB = Image(buf_ElevB, width=400, height=300)  
+
+
+
+
+######### ELEVACION L #############
+
+fig, ax2 = plt.subplots()
+fig.canvas.manager.set_window_title("Elevacion L")
+fig.suptitle("Elevacion L", fontsize=16, fontweight='bold')
+
+zapataElevL = patches.Rectangle((0,0),L,hzapata,linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevL = patches.Rectangle((L/2-bcol/2,hzapata),bcol,Df-hzapata,linewidth=1, edgecolor='black', facecolor='gray')
+ax2.hlines(Df,-1,L+1,linestyles='dashed', linewidth=1.5,edgecolor="black")
+
+#Cota L
+ax2.plot([0, 0], [0, -0.5], color='blue', lw=1)  # Línea de cota izquierda
+ax2.plot([L, L], [0, -0.5], color='blue', lw=1)  # Línea de cota derecha
+ax2.plot([0, L], [-0.375, -0.375], color='blue', lw=1)  # Línea horizontal de cota
+ax2.plot(0, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax2.plot(L, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax2.text(L/2, -0.5, f'{L} m', ha='center', va='center', fontsize=8.5,fontweight='bold',color='blue')
+
+#Cota Columna
+ax2.plot([L/2-bcol/2,L/2-bcol/2, ], [Df,Df+0.375], color='blue', lw=1)  # Línea de cota izquierda
+ax2.plot([L/2+bcol/2,L/2+bcol/2, ], [Df,Df+0.375], color='blue', lw=1)  # Línea de cota derecha
+ax2.plot([L/2-bcol/2, L/2+bcol/2], [Df+0.25, Df+0.25], color='blue', lw=1)  # Línea horizontal de cota
+ax2.plot(L/2-bcol/2, Df+0.25, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax2.plot(L/2+bcol/2, Df+0.25, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax2.text(L/2, Df+0.375, f'{bcol} m', ha='center', va='center', fontsize=8.5,fontweight='bold',color='blue')
+
+#Cota Profundidad de desplante
+ax2.plot([0, -0.5], [0, 0], color='blue', lw=1)  # Línea de cota inferior
+ax2.plot([0, -0.5], [Df, Df], color='blue', lw=1)  # Línea de cota superior
+ax2.plot([-0.375, -0.375], [0, Df], color='blue', lw=1)  # Línea vertical de cota
+ax2.plot(-0.375, Df, 'bo',markersize=3)  # Punto en la intersección superior
+ax2.plot(-0.375, 0, 'bo',markersize=3)  # Punto en la intersección inferior
+ax2.text(-0.5, Df / 2, f'{Df} m', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=90,color='blue')
+ax2.text(L, Df+0.125, 'Nv = +0.00', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=0,color='black')
+
+#Cota Peralte de zapata 
+ax2.plot([L, L+0.5], [0, 0], color='blue', lw=1)  # Línea de cota inferior
+ax2.plot([L, L+0.5], [hzapata, hzapata], color='blue', lw=1)  # Línea de cota superior
+ax2.plot([L+0.375, L+0.375], [0, hzapata], color='blue', lw=1)  # Línea vertical de cota
+ax2.plot(L+0.375, 0, 'bo',markersize=3)  # Punto en la intersección superior
+ax2.plot(L+0.375, hzapata, 'bo',markersize=3)  # Punto en la intersección inferior
+ax2.text(L+0.5, hzapata / 2, f'{hzapata} m', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=90,color='blue')
+
+#GRAFICACION DE ACERO DE REFUERZO
+
+ax2.hlines(rec, rec, L-rec, color='red', linewidth=1.5) #linea horizontal de aceros en sentido paralelo a B
+ax2.vlines(rec, rec, rec+Lg, color='red', linewidth=1.5) #linea horizontal de aceros en sentido paralelo a B
+ax2.vlines(L-rec, rec, rec+Lg, color='red', linewidth=1.5) #linea horizontal de aceros en sentido paralelo a B
+ax2.text(L/2, rec+0.05, f'1 Φ {Dvarilla} @ {Espaciamientoy} cm', ha='center', va='center', fontsize=7, color='red')
+
+ax2.add_patch(zapataElevL)
+ax2.add_patch(ColElevL)
+ax2.set_xlim(-1, L+ 1)
+ax2.set_ylim(-1, Df + 1)
+ax2.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+
+buf_ElevL = BytesIO()
+fig.savefig(buf_ElevL, format='png', dpi=300, bbox_inches='tight')
+buf_ElevL.seek(0)
+img_ElevL = Image(buf_ElevL, width=400, height=300) 
+
+###################################################  GRAFIACION DE ESFUERZOS  DE SERVICIO EN B #####################################################################
+#Determinacion de esfuerzos
+
+qsmaxy = max(qs2y,qs1y)
+qsminy = min(qs2y,qs1y)
+
+x_trapBs = [B - a_B, B, B, B - a_B, B - a_B]
+
+# CONDICIONAL DE ESFUERZOS
+
+if Msy < 0:
+	y_trapBs = [-qsminy/qsmaxy, -qsmaxy/qsmaxy, 0, 0, -qsminy/qsmaxy]
+	SentidoMsy = 'horario'
+else:
+	y_trapBs = [-qsmaxy/qsmaxy, -qsminy/qsmaxy, 0, 0, -qsmaxy/qsmaxy]
+	SentidoMsy = 'antihorario'
+
+#Coordenadas de la flecha de carga axial
+x_flecha_Ps = B / 2
+y_top = Df + 0.5  # un poco encima de la columna
+y_bot = Df   # Hasta la profundidad de desplabte
+
+#Arco que define el momento:
+centroMsy= (B/2,Df+0.5)
+rMsy = 0.3
+arcoMsy = Arc((centroMsy), width=2*rMsy, height=2*rMsy, theta1=0, theta2=180, color='red', lw=1)
+
+##Flechas que definen la punta del arco
+
+if Msy < 0:
+	x_flecha_Msy = B/2+rMsy
+	y_flecha_Msy = Df+0.5
+else:
+	x_flecha_Msy = B/2-rMsy	
+	y_flecha_Msy = Df+0.5
+
+
+fig, ax3 = plt.subplots()
+fig.canvas.manager.set_window_title("Esfuerzos de servicio en B")
+fig.suptitle("Esfuerzos de servicio en B", fontsize=16, fontweight='bold')
+zapataElevB = patches.Rectangle((0,0),B,hzapata,linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevB = patches.Rectangle((B/2-hcol/2,hzapata),hcol,Df-hzapata,linewidth=1, edgecolor='black', facecolor='gray')
+
+#####Flechas que carecterizan el esfuerzo del suelo#####
+n_flechasBs = int(B/0.1)
+x_valsBs = np.linspace(0,B,n_flechasBs)
+for x in x_valsBs:
+	if Msy < 0:
+		y_baseqsB = (-qsminy/qsmaxy) +((qsminy/qsmaxy)-(qsmaxy/qsmaxy))*(x/B)
+		y_puntaqsB = 0
+		#Cuerpo de la flecha
+		ax3.plot([x,x],[y_baseqsB,y_puntaqsB],color='orange',lw=1)
+		#Cabeza de la flecha
+		ax3.annotate('',
+                	xy=(x, y_puntaqsB), xytext=(x, y_puntaqsB-qsminy/qsmaxy),
+                	arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+	else:
+		y_baseqsB = (-qsmaxy/qsmaxy) +((qsmaxy/qsmaxy)-(qsminy/qsmaxy))*(x/B)
+		y_puntaqsB = 0
+		#Cuerpo de la flecha
+		ax3.plot([x,x],[y_baseqsB,y_puntaqsB],color='orange',lw=1)
+		#Cabeza de la flecha
+		ax3.annotate('',
+                	xy=(x, y_puntaqsB), xytext=(x, y_puntaqsB-qsminy/qsmaxy),
+                	arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+#Configuraciones de graficos
+ax3.add_patch(arcoMsy)
+ax3.add_patch(zapataElevB)
+ax3.add_patch(ColElevB)
+ax3.annotate('', xy=(x_flecha_Ps, y_bot), xytext=(x_flecha_Ps, y_top),color='red',
+             arrowprops=dict(facecolor='red', width=1.0, headwidth=4),
+             annotation_clip=False)															#Grafica de carga axial
+
+ax3.plot(x_trapBs, y_trapBs, color='orange', lw=1) #Graficacion de esfuerzos
+ax3.add_patch(arcoMsy) #Graficacion del arco
+if Msy < 0:
+	ax3.plot([x_flecha_Msy, x_flecha_Msy - 0.2 * rMsy], [y_flecha_Msy, y_flecha_Msy + 0.3 * rMsy], color='red', lw=1)  # Línea puntas de flecha izquierda
+	ax3.plot([x_flecha_Msy, x_flecha_Msy + 0.1 * rMsy], [y_flecha_Msy, y_flecha_Msy + 0.3 * rMsy], color='red', lw=1)  # Línea puntas de flecha derecha
+else:
+	ax3.plot([x_flecha_Msy, x_flecha_Msy - 0.1 * rMsy], [y_flecha_Msy, y_flecha_Msy + 0.3 * rMsy], color='red', lw=1)  # Línea puntas de flecha izquierda
+	ax3.plot([x_flecha_Msy, x_flecha_Msy + 0.2 * rMsy], [y_flecha_Msy, y_flecha_Msy + 0.3 * rMsy], color='red', lw=1)  # Línea puntas de flecha derecha
+ax3.text(x_flecha_Ps + 0.1, (y_top + y_bot)/2, 'Ps = 'f'{Ps} Kn', va='center', fontsize=7) 	#Texto de carga axial
+ax3.text(B/2-2*rMsy,Df+1, 'Msy = 'f'{Msy} Kn*m', va='center', fontsize=7) 	#Etiqueta de momento
+
+# CONDICIONAL DE ETIQUETAS DE ESFUERZOS
+if Msy < 0:
+	
+	ax3.text(B+0.1, -qsmaxy/qsmaxy, 'qsmaxy = 'f'{qsmaxy } Kn/m2', va='center', fontsize=7) 	#Etiqueta qsmax
+	ax3.text(-0.5*B-0.5, -qsminy/qsmaxy, 'qsminy = 'f'{qsminy } Kn/m2', va='center', fontsize=7) 	#Etiqueta qsmin
+	
+else:
+	ax3.text(B+0.1, -qsminy/qsmaxy, 'qsminy = 'f'{qsminy } Kn/m2', va='center', fontsize=7) 	#Etiqueta qsmax
+	ax3.text(-0.5*B-0.5, -qsmaxy/qsmaxy, 'qsmaxy = 'f'{qsmaxy } Kn/m2', va='center', fontsize=7) 	#Etiqueta qsmin
+
+#Cota B
+ax3.plot([0, 0], [-qsmaxy/qsmaxy-0.2, -qsmaxy/qsmaxy-0.4], color='blue', lw=1)  # Línea de cota izquierda
+ax3.plot([B, B], [-qsmaxy/qsmaxy-0.2, -qsmaxy/qsmaxy-0.4], color='blue', lw=1)  # Línea de cota derecha
+ax3.plot([0, B], [-qsmaxy/qsmaxy-0.3, -qsmaxy/qsmaxy-0.3], color='blue', lw=1)  # Línea horizontal de cota
+ax3.plot(0, -qsmaxy/qsmaxy-0.3, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax3.plot(B, -qsmaxy/qsmaxy-0.3, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax3.text(B/2, -qsmaxy/qsmaxy-0.5, f'{B} m', ha='center', va='center', fontsize=7,color='blue')
+	
+ax3.set_xlim(-1, B + 1)
+ax3.set_ylim(-2, Df + 1.5)
+ax3.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+
+buf_EServB = BytesIO()
+fig.savefig(buf_EServB, format='png', dpi=300, bbox_inches='tight')
+buf_EServB.seek(0)
+img_EServB = Image(buf_EServB, width=300, height=200) 
+
+###################################################  GRAFIACIÓN DE ESFUERZOS DE SERVICIO EN L #####################################################################
+qsmaxx = max(qs2x, qs1x)
+qsminx = min(qs2x, qs1x)
+x_trapLs = [L - a_L, L, L, L - a_L, L - a_L]
+
+if Msx < 0:
+    y_trapLs = [-qsminx/qsmaxx, -qsmaxx/qsmaxx, 0, 0, -qsminx/qsmaxx]
+    SentidoMsx = 'horario'
+else:
+    y_trapLs = [-qsmaxx/qsmaxx, -qsminx/qsmaxx, 0, 0, -qsmaxx/qsmaxx]
+    SentidoMsx = 'antihorario'
+
+x_flecha_Ps = L / 2
+centroMsx = (L/2, Df+0.5)
+rMsx = 0.3
+arcoMsx = Arc(centroMsx, width=2*rMsx, height=2*rMsx, theta1=0, theta2=180, color='red', lw=1)
+
+if Msx < 0:
+    x_flecha_Msx = L/2 + rMsx
+    y_flecha_Msx = Df + 0.5
+else:
+    x_flecha_Msx = L/2 - rMsx
+    y_flecha_Msx = Df + 0.5
+
+fig, ax4 = plt.subplots()
+fig.canvas.manager.set_window_title("Esfuerzos de servicio en L")
+fig.suptitle("Esfuerzos de servicio en L", fontsize=16, fontweight='bold')
+zapataElevL = patches.Rectangle((0, 0), L, hzapata, linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevL = patches.Rectangle((L/2-hcol/2, hzapata), hcol, Df - hzapata, linewidth=1, edgecolor='black', facecolor='gray')
+
+n_flechasLs = int(L / 0.1)
+x_valsLs = np.linspace(0, L, n_flechasLs)
+for x in x_valsLs:
+    if Msx < 0:
+        y_baseqsL = (-qsminx/qsmaxx) + ((qsminx/qsmaxx) - (qsmaxx/qsmaxx)) * (x / L)
+        y_puntaqsL = 0
+        ax4.plot([x, x], [y_baseqsL, y_puntaqsL], color='orange', lw=1)
+        ax4.annotate('', xy=(x, y_puntaqsL), xytext=(x, y_puntaqsL - qsminx/qsmaxx),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+    else:
+        y_baseqsL = (-qsmaxx/qsmaxx) + ((qsmaxx/qsmaxx) - (qsminx/qsmaxx)) * (x / L)
+        y_puntaqsL = 0
+        ax4.plot([x, x], [y_baseqsL, y_puntaqsL], color='orange', lw=1)
+        ax4.annotate('', xy=(x, y_puntaqsL), xytext=(x, y_puntaqsL - qsminx/qsmaxx),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+
+ax4.add_patch(zapataElevL)
+ax4.add_patch(ColElevL)
+ax4.add_patch(arcoMsx)
+ax4.annotate('', xy=(x_flecha_Ps, Df), xytext=(x_flecha_Ps, Df + 0.5), color='red',
+             arrowprops=dict(facecolor='red', width=1.0, headwidth=4), annotation_clip=False)
+ax4.plot(x_trapLs, y_trapLs, color='orange', lw=1)
+
+if Msx < 0:
+    ax4.plot([x_flecha_Msx, x_flecha_Msx - 0.2 * rMsx], [y_flecha_Msx, y_flecha_Msx + 0.3 * rMsx], color='red', lw=1)
+    ax4.plot([x_flecha_Msx, x_flecha_Msx + 0.1 * rMsx], [y_flecha_Msx, y_flecha_Msx + 0.3 * rMsx], color='red', lw=1)
+else:
+    ax4.plot([x_flecha_Msx, x_flecha_Msx - 0.1 * rMsx], [y_flecha_Msx, y_flecha_Msx + 0.3 * rMsx], color='red', lw=1)
+    ax4.plot([x_flecha_Msx, x_flecha_Msx + 0.2 * rMsx], [y_flecha_Msx, y_flecha_Msx + 0.3 * rMsx], color='red', lw=1)
+
+ax4.text(x_flecha_Ps + 0.1, Df + 0.25, f'Ps = {Ps} Kn', va='center', fontsize=7)
+ax4.text(L/2 - 2*rMsx, Df + 1, f'Msx = {Msx} Kn*m', va='center', fontsize=7)
+
+if Msx < 0:
+    ax4.text(L + 0.1, -qsmaxx/qsmaxx, f'qsmaxx = {qsmaxx} Kn/m2', va='center', fontsize=7)
+    ax4.text(-0.5*L - 0.5, -qsminx/qsmaxx, f'qsminx = {qsminx} Kn/m2', va='center', fontsize=7)
+else:
+    ax4.text(L + 0.1, -qsminx/qsmaxx, f'qsminx = {qsminx} Kn/m2', va='center', fontsize=7)
+    ax4.text(-0.5*L - 0.5, -qsmaxx/qsmaxx, f'qsmaxx = {qsmaxx} Kn/m2', va='center', fontsize=7)
+
+ax4.plot([0, 0], [-qsmaxx/qsmaxx - 0.2, -qsmaxx/qsmaxx - 0.4], color='blue', lw=1)
+ax4.plot([L, L], [-qsmaxx/qsmaxx - 0.2, -qsmaxx/qsmaxx - 0.4], color='blue', lw=1)
+ax4.plot([0, L], [-qsmaxx/qsmaxx - 0.3, -qsmaxx/qsmaxx - 0.3], color='blue', lw=1)
+ax4.plot(0, -qsmaxx/qsmaxx - 0.3, 'bo', markersize=3)
+ax4.plot(L, -qsmaxx/qsmaxx - 0.3, 'bo', markersize=3)
+ax4.text(L / 2, -qsmaxx/qsmaxx - 0.5, f'{L} m', ha='center', va='center', fontsize=7, color='blue')
+
+ax4.set_xlim(-1, L + 1)
+ax4.set_ylim(-2, Df + 1.5)
+ax4.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+
+buf_EServL = BytesIO()
+fig.savefig(buf_EServL, format='png', dpi=300, bbox_inches='tight')
+buf_EServL.seek(0)
+img_EServL = Image(buf_EServL, width=300, height=200) 
+
+###################################################  GRAFIACIÓN DE ESFUERZOS ÚLTIMOS EN B #####################################################################
+qumaxy = max(qu2y, qu1y)
+quminy = min(qu2y, qu1y)
+x_trapBu = [B - a_B, B, B, B - a_B, B - a_B]
+
+if Muy < 0:
+    y_trapBu = [-quminy/qumaxy, -qumaxy/qumaxy, 0, 0, -quminy/qumaxy]
+    SentidoMuy = 'horario'
+else:
+    y_trapBu = [-qumaxy/qumaxy, -quminy/qumaxy, 0, 0, -qumaxy/qumaxy]
+    SentidoMuy = 'antihorario'
+
+x_flecha_Pu = B / 2
+centroMuy = (B/2, Df+0.5)
+rMuy = 0.3
+arcoMuy = Arc(centroMuy, width=2*rMuy, height=2*rMuy, theta1=0, theta2=180, color='red', lw=1)
+
+if Muy < 0:
+    x_flecha_Muy = B/2 + rMuy
+    y_flecha_Muy = Df + 0.5
+else:
+    x_flecha_Muy = B/2 - rMuy
+    y_flecha_Muy = Df + 0.5
+
+fig, ax5 = plt.subplots()
+fig.canvas.manager.set_window_title("Esfuerzos Ultimos en B")
+fig.suptitle("Esfuerzos Últimos en B", fontsize=16, fontweight='bold')
+zapataElevBu = patches.Rectangle((0, 0), B, hzapata, linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevBu = patches.Rectangle((B/2-bcol/2, hzapata), hcol, Df - hzapata, linewidth=1, edgecolor='black', facecolor='gray')
+
+n_flechasBu = int(B / 0.1)
+x_valsBu = np.linspace(0, B, n_flechasBu)
+for x in x_valsBu:
+    if Muy < 0:
+        y_basequB = (-quminy/qumaxy) + ((quminy/qumaxy) - (qumaxy/qumaxy)) * (x / B)
+        y_puntaquB = 0
+        ax5.plot([x, x], [y_basequB, y_puntaquB], color='orange', lw=1)
+        ax5.annotate('', xy=(x, y_puntaquB), xytext=(x, y_puntaquB - quminy/qumaxy),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+    else:
+        y_basequB = (-qumaxy/qumaxy) + ((qumaxy/qumaxy) - (quminy/qumaxy)) * (x / B)
+        y_puntaquB = 0
+        ax5.plot([x, x], [y_basequB, y_puntaquB], color='orange', lw=1)
+        ax5.annotate('', xy=(x, y_puntaquB), xytext=(x, y_puntaquB - quminy/qumaxy),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+
+ax5.add_patch(zapataElevBu)
+ax5.add_patch(ColElevBu)
+ax5.add_patch(arcoMuy)
+ax5.annotate('', xy=(x_flecha_Pu, Df), xytext=(x_flecha_Pu, Df + 0.5), color='red',
+             arrowprops=dict(facecolor='red', width=1.0, headwidth=4), annotation_clip=False)
+ax5.plot(x_trapBu, y_trapBu, color='orange', lw=1)
+
+if Muy < 0:
+    ax5.plot([x_flecha_Muy, x_flecha_Muy - 0.2 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+    ax5.plot([x_flecha_Muy, x_flecha_Muy + 0.1 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+else:
+    ax5.plot([x_flecha_Muy, x_flecha_Muy - 0.1 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+    ax5.plot([x_flecha_Muy, x_flecha_Muy + 0.2 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+
+ax5.text(x_flecha_Pu + 0.1, Df + 0.25, f'Pu = {Pu} Kn', va='center', fontsize=7)
+ax5.text(B/2 - 2*rMuy, Df + 1, f'Muy = {Muy} Kn*m', va='center', fontsize=7)
+
+if Muy < 0:
+    ax5.text(B + 0.1, -qumaxy/qumaxy, f'qumaxy = {qumaxy} Kn/m2', va='center', fontsize=7)
+    ax5.text(-0.5*B - 0.5, -quminy/qumaxy, f'quminy = {quminy} Kn/m2', va='center', fontsize=7)
+else:
+    ax5.text(B + 0.1, -quminy/qumaxy, f'quminy = {quminy} Kn/m2', va='center', fontsize=7)
+    ax5.text(-0.5*B - 0.5, -qumaxy/qumaxy, f'qumaxy = {qumaxy} Kn/m2', va='center', fontsize=7)
+
+ax5.plot([0, 0], [-qumaxy/qumaxy - 0.2, -qumaxy/qumaxy - 0.4], color='blue', lw=1)
+ax5.plot([B, B], [-qumaxy/qumaxy - 0.2, -qumaxy/qumaxy - 0.4], color='blue', lw=1)
+ax5.plot([0, B], [-qumaxy/qumaxy - 0.3, -qumaxy/qumaxy - 0.3], color='blue', lw=1)
+ax5.plot(0, -qumaxy/qumaxy - 0.3, 'bo', markersize=3)
+ax5.plot(B, -qumaxy/qumaxy - 0.3, 'bo', markersize=3)
+ax5.text(B / 2, -qumaxy/qumaxy - 0.5, f'{B} m', ha='center', va='center', fontsize=7, color='blue')
+
+ax5.set_xlim(-1, B + 1)
+ax5.set_ylim(-2, Df + 1.5)
+ax5.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+
+buf_EUB = BytesIO()
+fig.savefig(buf_EUB, format='png', dpi=300, bbox_inches='tight')
+buf_EUB.seek(0)
+img_EUB = Image(buf_EUB, width=300, height=200) 
+
+
+###################################################  GRAFIACIÓN DE ESFUERZOS ÚLTIMOS EN L #####################################################################
+qumaxx = max(qu2x, qu1x)
+quminx = min(qu2x, qu1x)
+x_trapLu = [L - a_L, L, L, L - a_L, L - a_L]
+
+if Mux < 0:
+    y_trapLu = [-quminx/qumaxx, -qumaxx/qumaxx, 0, 0, -quminx/qumaxx]
+    SentidoMux = 'horario'
+else:
+    y_trapLu = [-qumaxx/qumaxx, -quminx/qumaxx, 0, 0, -qumaxx/qumaxx]
+    SentidoMux = 'antihorario'
+
+x_flecha_Pu = L / 2
+centroMux = (L/2, Df+0.5)
+rMux = 0.3
+arcoMux = Arc(centroMux, width=2*rMux, height=2*rMux, theta1=0, theta2=180, color='red', lw=1)
+
+if Mux < 0:
+    x_flecha_Mux = L/2 + rMux
+    y_flecha_Mux = Df + 0.5
+else:
+    x_flecha_Mux = L/2 - rMux
+    y_flecha_Mux = Df + 0.5
+
+fig, ax6 = plt.subplots()
+fig.canvas.manager.set_window_title("Esfuerzos Ultimos en L")
+fig.suptitle("Esfuerzos Últimos en L", fontsize=16, fontweight='bold')
+zapataElevLu = patches.Rectangle((0, 0), L, hzapata, linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevLu = patches.Rectangle((L/2-hcol/2, hzapata), hcol, Df - hzapata, linewidth=1, edgecolor='black', facecolor='gray')
+
+n_flechasLu = int(L / 0.1)
+x_valsLu = np.linspace(0, L, n_flechasLu)
+for x in x_valsLu:
+    if Mux < 0:
+        y_basequL = (-quminx/qumaxx) + ((quminx/qumaxx) - (qumaxx/qumaxx)) * (x / L)
+        y_puntaquL = 0
+        ax6.plot([x, x], [y_basequL, y_puntaquL], color='orange', lw=1)
+        ax6.annotate('', xy=(x, y_puntaquL), xytext=(x, y_puntaquL - quminx/qumaxx),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+    else:
+        y_basequL = (-qumaxx/qumaxx) + ((qumaxx/qumaxx) - (quminx/qumaxx)) * (x / L)
+        y_puntaquL = 0
+        ax6.plot([x, x], [y_basequL, y_puntaquL], color='orange', lw=1)
+        ax6.annotate('', xy=(x, y_puntaquL), xytext=(x, y_puntaquL - quminx/qumaxx),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+
+ax6.add_patch(zapataElevLu)
+ax6.add_patch(ColElevLu)
+ax6.add_patch(arcoMux)
+ax6.annotate('', xy=(x_flecha_Pu, Df), xytext=(x_flecha_Pu, Df + 0.5), color='red',
+             arrowprops=dict(facecolor='red', width=1.0, headwidth=4), annotation_clip=False)
+ax6.plot(x_trapLu, y_trapLu, color='orange', lw=1)
+
+if Mux < 0:
+    ax6.plot([x_flecha_Mux, x_flecha_Mux - 0.2 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+    ax6.plot([x_flecha_Mux, x_flecha_Mux + 0.1 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+else:
+    ax6.plot([x_flecha_Mux, x_flecha_Mux - 0.1 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+    ax6.plot([x_flecha_Mux, x_flecha_Mux + 0.2 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+
+ax6.text(x_flecha_Pu + 0.1, Df + 0.25, f'Pu = {Pu} Kn', va='center', fontsize=7)
+ax6.text(L/2 - 2*rMux, Df + 1, f'Mux = {Mux} Kn*m', va='center', fontsize=7)
+
+if Mux < 0:
+    ax6.text(L + 0.1, -qumaxx/qumaxx, f'qumaxx = {qumaxx} Kn/m2', va='center', fontsize=7)
+    ax6.text(-0.5*L - 0.5, -quminx/qumaxx, f'quminx = {quminx} Kn/m2', va='center', fontsize=7)
+else:
+    ax6.text(L + 0.1, -quminx/qumaxx, f'quminx = {quminx} Kn/m2', va='center', fontsize=7)
+    ax6.text(-0.5*L - 0.5, -qumaxx/qumaxx, f'qumaxx = {qumaxx} Kn/m2', va='center', fontsize=7)
+
+ax6.plot([0, 0], [-qumaxx/qumaxx - 0.2, -qumaxx/qumaxx - 0.4], color='blue', lw=1)
+ax6.plot([L, L], [-qumaxx/qumaxx - 0.2, -qumaxx/qumaxx - 0.4], color='blue', lw=1)
+ax6.plot([0, L], [-qumaxx/qumaxx - 0.3, -qumaxx/qumaxx - 0.3], color='blue', lw=1)
+ax6.plot(0, -qumaxx/qumaxx - 0.3, 'bo', markersize=3)
+ax6.plot(L, -qumaxx/qumaxx - 0.3, 'bo', markersize=3)
+ax6.text(L / 2, -qumaxx/qumaxx - 0.5, f'{L} m', ha='center', va='center', fontsize=7, color='blue')
+
+ax6.set_xlim(-1, L + 1)
+ax6.set_ylim(-2, Df + 1.5)
+ax6.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+
+buf_EUL = BytesIO()
+fig.savefig(buf_EUL, format='png', dpi=300, bbox_inches='tight')
+buf_EUL.seek(0)
+img_EUL = Image(buf_EUL, width=300, height=200) 
+
+#GRAFICACION DE CORTES EN PLANTA
+
+fig, ax7 = plt.subplots()
+fig.canvas.manager.set_window_title("Anchos de analisis")
+fig.suptitle("Anchos de analisis ", fontsize=16, fontweight='bold')
+zapata = patches.Rectangle((0, 0), B, L, linewidth=1, edgecolor='black', facecolor='lightgray')
+
+PosicionXcol = B/2 -bcol/2
+PosicionYcol = L/2 -hcol/2
+columna = patches.Rectangle((PosicionXcol, PosicionYcol), bcol, hcol, linewidth=1, edgecolor='black', facecolor='gray')
+
+ax7.hlines(L/2+hcol/2,-0.5,B+0.5,linestyles='dashed', linewidth=1.5,edgecolor="red") #Linea de corte horizontal
+ax7.vlines(B/2+bcol/2,-0.5,L+0.5,linestyles='dashed', linewidth=1.5,edgecolor="red") #Linea de corte vertical
+
+
+#COTA ALA X
+ax7.plot([B/2+bcol/2, B/2+bcol/2], [0, -0.5], color='blue', lw=1)  # Línea de cota izquierda
+ax7.plot([B, B], [0, -0.5], color='blue', lw=1)  # Línea de cota derecha
+ax7.plot([B/2+bcol/2, B], [-0.375, -0.375], color='blue', lw=1)  # Línea horizontal de cota
+ax7.plot(B/2+bcol/2, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax7.plot(B, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax7.text((B+B/2+bcol/2)/2, -0.25, "Ala x:", ha='center', va='center', fontsize=8,fontweight='bold',color='blue')
+ax7.text((B+B/2+bcol/2)/2, -0.5, f'{Ala_x} m', ha='center', va='center', fontsize=8,fontweight='bold',color='blue')
+
+#COTA ALA Y
+ax7.plot([0, -0.5], [L/2+hcol/2, L/2+hcol/2], color='blue', lw=1)  # Línea de cota inferior
+ax7.plot([0, -0.5], [L, L], color='blue', lw=1)  # Línea de cota superior
+ax7.plot([-0.375, -0.375], [L/2+hcol/2, L], color='blue', lw=1)  # Línea vertical de cota
+ax7.plot(-0.375, L, 'bo',markersize=3)  # Punto en la intersección superior
+ax7.plot(-0.375, L/2+hcol/2, 'bo',markersize=3)  # Punto en la intersección inferior
+ax7.text(-0.5, (L+L/2+hcol/2)/2, "Ala y:", ha='center', va='center', fontsize=8,fontweight='bold',rotation=90,color='blue')
+ax7.text(-0.25, (L+L/2+hcol/2)/2, f'{Ala_y} m', ha='center', va='center', fontsize=8, fontweight='bold', rotation=90,color='blue')
+
+
+ax7.add_patch(zapata)
+ax7.add_patch(columna)
+ax7.set_xlim(-1, B + 1)
+ax7.set_ylim(-1, L + 1)
+ax7.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+buf_Aanalisis = BytesIO()
+fig.savefig(buf_Aanalisis, format='png', dpi=300, bbox_inches='tight')
+buf_Aanalisis.seek(0)
+img_Aanalisis = Image(buf_Aanalisis, width=300, height=300) 
+
+#############################################GRAFICACION DE CORTANTE UNIDIRECCIONAL SENTIDO B ##############################################################
+qumaxy = max(qu2y, qu1y)
+quminy = min(qu2y, qu1y)
+x_trapBu = [B - a_B, B, B, B - a_B, B - a_B]
+
+if Muy < 0:
+    y_trapBu = [-quminy/qumaxy, -qumaxy/qumaxy, 0, 0, -quminy/qumaxy]
+    SentidoMuy = 'horario'
+else:
+    y_trapBu = [-qumaxy/qumaxy, -quminy/qumaxy, 0, 0, -qumaxy/qumaxy]
+    SentidoMuy = 'antihorario'
+
+x_flecha_Pu = B / 2
+centroMuy = (B/2, Df+0.5)
+rMuy = 0.3
+arcoMuy = Arc(centroMuy, width=2*rMuy, height=2*rMuy, theta1=0, theta2=180, color='red', lw=1)
+
+if Muy < 0:
+    x_flecha_Muy = B/2 + rMuy
+    y_flecha_Muy = Df + 0.5
+else:
+    x_flecha_Muy = B/2 - rMuy
+    y_flecha_Muy = Df + 0.5
+
+fig, ax8 = plt.subplots()
+fig.canvas.manager.set_window_title("Cortante unidireccional en B")
+fig.suptitle("Cortante unidereccional en B", fontsize=16, fontweight='bold')
+zapataElevBu = patches.Rectangle((0, 0), B, hzapata, linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevBu = patches.Rectangle((B/2-hcol/2, hzapata), hcol, Df - hzapata, linewidth=1, edgecolor='black', facecolor='gray')
+
+n_flechasBu = int(B / 0.1)
+x_valsBu = np.linspace(0, B, n_flechasBu)
+for x in x_valsBu:
+    if Muy < 0:
+        y_basequB = (-quminy/qumaxy) + ((quminy/qumaxy) - (qumaxy/qumaxy)) * (x / B)
+        y_puntaquB = 0
+        ax8.plot([x, x], [y_basequB, y_puntaquB], color='orange', lw=1)
+        ax8.annotate('', xy=(x, y_puntaquB), xytext=(x, y_puntaquB - quminy/qumaxy),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+    else:
+        y_basequB = (-qumaxy/qumaxy) + ((qumaxy/qumaxy) - (quminy/qumaxy)) * (x / B)
+        y_puntaquB = 0
+        ax8.plot([x, x], [y_basequB, y_puntaquB], color='orange', lw=1)
+        ax8.annotate('', xy=(x, y_puntaquB), xytext=(x, y_puntaquB - quminy/qumaxy),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+
+ax8.add_patch(zapataElevBu)
+ax8.add_patch(ColElevBu)
+ax8.add_patch(arcoMuy)
+ax8.annotate('', xy=(x_flecha_Pu, Df), xytext=(x_flecha_Pu, Df + 0.5), color='red',
+             arrowprops=dict(facecolor='red', width=1.0, headwidth=4), annotation_clip=False)
+ax8.plot(x_trapBu, y_trapBu, color='orange', lw=1)
+
+if Muy < 0:
+    ax8.plot([x_flecha_Muy, x_flecha_Muy - 0.2 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+    ax8.plot([x_flecha_Muy, x_flecha_Muy + 0.1 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+else:
+    ax8.plot([x_flecha_Muy, x_flecha_Muy - 0.1 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+    ax8.plot([x_flecha_Muy, x_flecha_Muy + 0.2 * rMuy], [y_flecha_Muy, y_flecha_Muy + 0.3 * rMuy], color='red', lw=1)
+
+ax8.text(x_flecha_Pu + 0.1, Df + 0.25, f'Pu = {Pu} Kn', va='center', fontsize=7)
+ax8.text(B/2 - 2*rMuy, Df + 1, f'Muy = {Muy} Kn*m', va='center', fontsize=7)
+
+if Muy < 0:
+    ax8.text(B + 0.1, -qumaxy/qumaxy, f'qumaxy = {qumaxy} Kn/m2', va='center', fontsize=7)
+    ax8.text(-0.5*B - 0.5, -quminy/qumaxy, f'quminy = {quminy} Kn/m2', va='center', fontsize=7)
+else:
+    ax8.text(B + 0.1, -quminy/qumaxy, f'quminy = {quminy} Kn/m2', va='center', fontsize=7)
+    ax8.text(-0.5*B - 0.5, -qumaxy/qumaxy, f'qumaxy = {qumaxy} Kn/m2', va='center', fontsize=7)
+
+ax8.plot([0, 0], [-qumaxy/qumaxy - 0.2, -qumaxy/qumaxy - 0.4], color='blue', lw=1)
+ax8.plot([B, B], [-qumaxy/qumaxy - 0.2, -qumaxy/qumaxy - 0.4], color='blue', lw=1)
+ax8.plot([0, B], [-qumaxy/qumaxy - 0.3, -qumaxy/qumaxy - 0.3], color='blue', lw=1)
+ax8.plot(0, -qumaxy/qumaxy - 0.3, 'bo', markersize=3)
+ax8.plot(B, -qumaxy/qumaxy - 0.3, 'bo', markersize=3)
+ax8.text(B / 2, -qumaxy/qumaxy - 0.5, f'{B} m', ha='center', va='center', fontsize=7, color='blue')
+
+if Muy < 0:
+    x_corteB = B/2 + bcol/2 + d
+    x_flecha_VactB = B + 0.15
+    x_flecha_VresB = B + 0.5
+    x_texto_VactB = x_flecha_VactB + 0.75
+    x_texto_VresB = x_flecha_VresB + 0.70
+    x_hline_B1 = B/2 + bcol/2
+    x_hline_B2 = B/2 + bcol/2 + d
+    x_texto_d_B = x_hline_B1 + d/2
+    ax8.vlines(x_corteB, -1.5, hzapata+0.5, linestyles='dashed', linewidth=1.5, edgecolor="red")
+    ax8.plot(DcB, -q1aB/qumaxy, 'go', markersize=3)
+    ax8.text(x_corteB - 0.8, -q1aB/qumaxy - 0.1, f'q1aB={q1aB} Kn/m2', ha='center', va='center', fontsize=7)
+else:
+    x_corteB = B/2 - bcol/2 - d
+    x_flecha_VactB = -0.15
+    x_flecha_VresB = -0.5
+    x_texto_VactB = x_flecha_VactB - 0.75
+    x_texto_VresB = x_flecha_VresB - 0.70
+    x_hline_B1 = B/2 - bcol/2
+    x_hline_B2 = B/2 - bcol/2 - d
+    x_texto_d_B = x_hline_B2 + d/2
+    ax8.vlines(x_corteB, -1.5, hzapata+0.5, linestyles='dashed', linewidth=1.5, edgecolor="red")
+    ax8.plot(B/2-bcol/2-d,-q1aB/qumaxy, 'go', markersize=3)
+    ax8.text(x_corteB+0.8, -q1aB/qumaxy - 0.1, f'q1aB={q1aB} Kn/m2', ha='center', va='center', fontsize=7)
+
+
+ax8.plot([x_hline_B1, x_hline_B2], [hzapata+0.25, hzapata+0.25], color='blue', lw=1)
+ax8.plot(x_hline_B1, hzapata+0.25, 'bo', markersize=3)
+ax8.plot(x_hline_B2, hzapata+0.25, 'bo', markersize=3)
+ax8.text(x_texto_d_B, hzapata+0.50, f'{d} m', ha='center', va='center', fontsize=7, color='blue')
+ax8.plot([x_flecha_VactB, x_flecha_VactB], [0, hzapata], color='red', lw=1)
+ax8.annotate('', xy=(x_flecha_VactB, 0), xytext=(x_flecha_VactB, 0.05), arrowprops=dict(arrowstyle='->', color='red', lw=1.2))
+ax8.plot([x_flecha_VresB, x_flecha_VresB], [0, hzapata], color='blue', lw=1)
+ax8.annotate('', xy=(x_flecha_VresB, hzapata+0.05), xytext=(x_flecha_VresB, hzapata-0.05), arrowprops=dict(arrowstyle='->', color='blue', lw=1.2))
+ax8.text(x_texto_VactB, -0.15, f'Vactuante={V1aB} Kn', ha='center', va='center', fontsize=7, color='red')
+ax8.text(x_texto_VresB, hzapata+0.15, f'Vresistente={FiVnB} Kn', ha='center', va='center', fontsize=7, color='blue')
+
+ax8.set_xlim(-1, B + 1)
+ax8.set_ylim(-2, Df + 1.5)
+ax8.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+buf_V1B = BytesIO()
+fig.savefig(buf_V1B, format='png', dpi=300, bbox_inches='tight')
+buf_V1B.seek(0)
+img_V1B = Image(buf_V1B, width=350, height=250) 
+
+
+#############################################GRAFICACION DE CORTANTE UNIDIRECCIONAL SENTIDO L ##############################################################
+qumaxx = max(qu2x, qu1x)
+quminx = min(qu2x, qu1x)
+x_trapLu = [L - a_L, L, L, L - a_L, L - a_L]
+
+if Mux < 0:
+    y_trapLu = [-quminx/qumaxx, -qumaxx/qumaxx, 0, 0, -quminx/qumaxx]
+    SentidoMux = 'horario'
+else:
+    y_trapLu = [-qumaxx/qumaxx, -quminx/qumaxx, 0, 0, -qumaxx/qumaxx]
+    SentidoMux = 'antihorario'
+
+x_flecha_Pu = L / 2
+centroMux = (L/2, Df+0.5)
+rMux = 0.3
+arcoMux = Arc(centroMux, width=2*rMux, height=2*rMux, theta1=0, theta2=180, color='red', lw=1)
+
+if Mux < 0:
+    x_flecha_Mux = L/2 + rMux
+    y_flecha_Mux = Df + 0.5
+else:
+    x_flecha_Mux = L/2 - rMux
+    y_flecha_Mux = Df + 0.5
+
+fig, ax9 = plt.subplots()
+fig.canvas.manager.set_window_title("Cortante Unidireccional en L")
+fig.suptitle("Cortante Unidreccional en L", fontsize=16, fontweight='bold')
+zapataElevLu = patches.Rectangle((0, 0), L, hzapata, linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevLu = patches.Rectangle((L/2-hcol/2, hzapata), hcol, Df - hzapata, linewidth=1, edgecolor='black', facecolor='gray')
+
+n_flechasLu = int(L / 0.1)
+x_valsLu = np.linspace(0, L, n_flechasLu)
+for x in x_valsLu:
+    if Mux < 0:
+        y_basequL = (-quminx/qumaxx) + ((quminx/qumaxx) - (qumaxx/qumaxx)) * (x / L)
+        y_puntaquL = 0
+        ax9.plot([x, x], [y_basequL, y_puntaquL], color='orange', lw=1)
+        ax9.annotate('', xy=(x, y_puntaquL), xytext=(x, y_puntaquL - quminx/qumaxx),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+    else:
+        y_basequL = (-qumaxx/qumaxx) + ((qumaxx/qumaxx) - (quminx/qumaxx)) * (x / L)
+        y_puntaquL = 0
+        ax9.plot([x, x], [y_basequL, y_puntaquL], color='orange', lw=1)
+        ax9.annotate('', xy=(x, y_puntaquL), xytext=(x, y_puntaquL - quminx/qumaxx),
+                     arrowprops=dict(arrowstyle='->', color='orange', lw=1.2))
+
+ax9.add_patch(zapataElevLu)
+ax9.add_patch(ColElevLu)
+ax9.add_patch(arcoMux)
+ax9.annotate('', xy=(x_flecha_Pu, Df), xytext=(x_flecha_Pu, Df + 0.5), color='red',
+             arrowprops=dict(facecolor='red', width=1.0, headwidth=4), annotation_clip=False)
+ax9.plot(x_trapLu, y_trapLu, color='orange', lw=1)
+
+if Mux < 0:
+    ax9.plot([x_flecha_Mux, x_flecha_Mux - 0.2 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+    ax9.plot([x_flecha_Mux, x_flecha_Mux + 0.1 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+else:
+    ax9.plot([x_flecha_Mux, x_flecha_Mux - 0.1 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+    ax9.plot([x_flecha_Mux, x_flecha_Mux + 0.2 * rMux], [y_flecha_Mux, y_flecha_Mux + 0.3 * rMux], color='red', lw=1)
+
+ax9.text(x_flecha_Pu + 0.1, Df + 0.25, f'Pu = {Pu} Kn', va='center', fontsize=7)
+ax9.text(L/2 - 2*rMux, Df + 1, f'Mux = {Mux} Kn*m', va='center', fontsize=7)
+
+if Mux < 0:
+    ax9.text(L + 0.1, -qumaxx/qumaxx, f'qumaxx = {qumaxx} Kn/m2', va='center', fontsize=7)
+    ax9.text(-0.5*L - 0.5, -quminx/qumaxx, f'quminx = {quminx} Kn/m2', va='center', fontsize=7)
+else:
+    ax9.text(L + 0.1, -quminx/qumaxx, f'quminx = {quminx} Kn/m2', va='center', fontsize=7)
+    ax9.text(-0.5*L - 0.5, -qumaxx/qumaxx, f'qumaxx = {qumaxx} Kn/m2', va='center', fontsize=7)
+
+ax9.plot([0, 0], [-qumaxx/qumaxx - 0.2, -qumaxx/qumaxx - 0.4], color='blue', lw=1)
+ax9.plot([L, L], [-qumaxx/qumaxx - 0.2, -qumaxx/qumaxx - 0.4], color='blue', lw=1)
+ax9.plot([0, L], [-qumaxx/qumaxx - 0.3, -qumaxx/qumaxx - 0.3], color='blue', lw=1)
+ax9.plot(0, -qumaxx/qumaxx - 0.3, 'bo', markersize=3)
+ax9.plot(L, -qumaxx/qumaxx - 0.3, 'bo', markersize=3)
+ax9.text(L / 2, -qumaxx/qumaxx - 0.5, f'{L} m', ha='center', va='center', fontsize=7, color='blue')
+
+
+if Mux < 0:
+    x_corteL = L/2 + hcol/2 + d
+    x_flecha_VactL = L + 0.15
+    x_flecha_VresL = L + 0.5
+    x_texto_VactL = x_flecha_VactL + 0.75
+    x_texto_VresL = x_flecha_VresL + 0.70
+    x_hline_L1 = L/2 + hcol/2
+    x_hline_L2 = L/2 + hcol/2 + d
+    x_texto_d_L = x_hline_L1 + d/2
+    ax9.vlines(x_corteL, -1.5, hzapata+0.5, linestyles='dashed', linewidth=1.5, edgecolor="red")
+    ax9.plot(DcL, -q1aL/qumaxx, 'go', markersize=3)
+    ax9.text(x_corteL - 0.8, -q1aL/qumaxx - 0.1, f'q1aL={q1aL} Kn/m2', ha='center', va='center', fontsize=7)
+else:
+    x_corteL = L/2 - hcol/2 - d
+    x_flecha_VactL = -0.15
+    x_flecha_VresL = -0.5
+    x_texto_VactL = x_flecha_VactL - 0.75
+    x_texto_VresL = x_flecha_VresL - 0.70
+    x_hline_L1 = L/2 - hcol/2
+    x_hline_L2 = L/2 - hcol/2 - d
+    x_texto_d_L = x_hline_L2 + d/2
+    ax9.vlines(x_corteL, -1.5, hzapata+0.5, linestyles='dashed', linewidth=1.5, edgecolor="red")
+    ax9.plot(L/2-hcol/2-d, -q1aL/qumaxx, 'go', markersize=3)
+    ax9.text(x_corteL+0.8, -q1aL/qumaxx - 0.1, f'q1aL={q1aL} Kn/m2', ha='center', va='center', fontsize=7)
+
+
+ax9.plot([x_hline_L1, x_hline_L2], [hzapata+0.25, hzapata+0.25], color='blue', lw=1)
+ax9.plot(x_hline_L1, hzapata+0.25, 'bo', markersize=3)
+ax9.plot(x_hline_L2, hzapata+0.25, 'bo', markersize=3)
+ax9.text(x_texto_d_L, hzapata+0.50, f'{d} m', ha='center', va='center', fontsize=7, color='blue')
+ax9.plot([x_flecha_VactL, x_flecha_VactL], [0, hzapata], color='red', lw=1)
+ax9.annotate('', xy=(x_flecha_VactL, 0), xytext=(x_flecha_VactL, 0.05), arrowprops=dict(arrowstyle='->', color='red', lw=1.2))
+ax9.plot([x_flecha_VresL, x_flecha_VresL], [0, hzapata], color='blue', lw=1)
+ax9.annotate('', xy=(x_flecha_VresL, hzapata+0.05), xytext=(x_flecha_VresL, hzapata-0.05), arrowprops=dict(arrowstyle='->', color='blue', lw=1.2))
+ax9.text(x_texto_VactL, -0.15, f'Vactuante={V1aL} Kn', ha='center', va='center', fontsize=7, color='red')
+ax9.text(x_texto_VresL, hzapata+0.15, f'Vresistente={FiVnL} Kn', ha='center', va='center', fontsize=7, color='blue')
+ax9.set_xlim(-1, L + 1)
+ax9.set_ylim(-2, Df + 1.5)
+ax9.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+buf_V1L = BytesIO()
+fig.savefig(buf_V1L, format='png', dpi=300, bbox_inches='tight')
+buf_V1L.seek(0)
+img_V1L = Image(buf_V1L, width=350, height=250) 
+
+######################################################## GRAFICA DE CORTANTE POR PUNZONAMIENTO #################################################
+
+
+
+fig, ax10 = plt.subplots()
+fig.canvas.manager.set_window_title("Cortante por Punzonamiento Planta")
+fig.suptitle("Cortante por Punzonamiento Planta", fontsize=16, fontweight='bold')
+
+#GRAFICACION EN PLANTA
+
+zapata = patches.Rectangle((0, 0), B, L, linewidth=1, edgecolor='black', facecolor='lightgray')
+PosicionXcol = B/2 -bcol/2
+PosicionYcol = L/2 -hcol/2
+
+#COTAS ZAPATA
+
+#COTA B
+ax10.plot([0, 0], [0, -0.5], color='blue', lw=1)  # Línea de cota izquierda
+ax10.plot([B, B], [0, -0.5], color='blue', lw=1)  # Línea de cota derecha
+ax10.plot([0, B], [-0.375, -0.375], color='blue', lw=1)  # Línea horizontal de cota
+ax10.plot(0, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax10.plot(B, -0.375, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax10.text(B/2, -0.5, f'{B} m', ha='center', va='center', fontsize=8.5,fontweight='bold',color='blue')
+
+#COTA L
+ax10.plot([0, -0.5], [0, 0], color='blue', lw=1)  # Línea de cota inferior
+ax10.plot([0, -0.5], [L, L], color='blue', lw=1)  # Línea de cota superior
+ax10.plot([-0.375, -0.375], [0, L], color='blue', lw=1)  # Línea vertical de cota
+ax10.plot(-0.375, L, 'bo',markersize=3)  # Punto en la intersección superior
+ax10.plot(-0.375, 0, 'bo',markersize=3)  # Punto en la intersección inferior
+ax10.text(-0.5, L / 2, f'{L} m', ha='center', va='center', fontsize=8.5, fontweight='bold', rotation=90,color='blue')
+ax10.set_aspect('equal')
+
+
+#LINEA PUNTEADA QUE DEFINE LA SECCIÓN CRITICA
+
+PosicionXSc = B/2 -bcol/2 - d/2
+PosicionYSc = L/2 -hcol/2 - d/2 
+PerimetroSc = patches.Rectangle((PosicionXSc, PosicionYSc), bcol+d, hcol+d, linewidth=1, edgecolor='red',facecolor='red',alpha=0.3)
+columna = patches.Rectangle((PosicionXcol, PosicionYcol), bcol, hcol, linewidth=1, edgecolor='black', facecolor='gray')
+
+#Cota B del perimetro efectivo
+
+ax10.plot([PosicionXSc, PosicionXSc+bcol+d], [PosicionYSc-0.25,PosicionYSc-0.25], color='blue', lw=1)  # Línea horizontal de cota
+ax10.plot(PosicionXSc, PosicionYSc-0.25, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax10.plot(PosicionXSc+bcol+d,PosicionYSc-0.25, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax10.text(B/2, PosicionYSc-0.45, f'{bcol+d} m', ha='center', va='center', fontsize=7,fontweight='bold',color='blue')
+
+#Cota L del perimetro efectivo
+ax10.plot([PosicionXSc-0.25, PosicionXSc-0.25], [PosicionYSc,PosicionYSc+hcol+d], color='blue', lw=1)  # Línea vertical de cota
+ax10.plot(PosicionXSc-0.25, PosicionYSc, 'bo',markersize=3)  # Punto en la intersección izquierda
+ax10.plot(PosicionXSc-0.25,PosicionYSc+hcol+d, 'bo',markersize=3)  # Punto en la intersección derecha
+ax10.text(PosicionXSc-0.45,L/2, f'{hcol+d} m', ha='center', va='center', fontsize=7,fontweight='bold',color='blue',rotation=90)
+
+#Textos de area efectiva y perimetro de las eccion critica:
+ax10.text(B+0.25,L, f' bo={bo} [m]', ha='left', va='center', fontsize=7,color='black')
+ax10.text(B+0.25,L-0.25, f' Aeff={Aeff} [m2]', ha='left', va='center', fontsize=7,color='black')
+
+ax10.add_patch(zapata)
+ax10.add_patch(columna)
+ax10.add_patch(PerimetroSc)
+ax10.set_xlim(-1, B + 1)
+ax10.set_ylim(-1, L + 1)
+ax10.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+buf_VPunzoplanta = BytesIO()
+fig.savefig(buf_VPunzoplanta, format='png', dpi=300, bbox_inches='tight')
+buf_VPunzoplanta.seek(0)
+img_VPunzoplanta = Image(buf_VPunzoplanta, width=350, height=250) 
+
+#GRAFICACION EN ELEVACION
+
+fig, ax11 = plt.subplots()
+fig.canvas.manager.set_window_title("Cortante por Punzonamiento Elevacion ")
+fig.suptitle(" Cortante por Punzonamiento Elevacion", fontsize=16, fontweight='bold')
+
+zapataElevL = patches.Rectangle((0,0),L,hzapata,linewidth=1, edgecolor='black', facecolor='lightgray')
+ColElevL = patches.Rectangle((L/2-bcol/2,hzapata),max(bcol,hcol),Df-hzapata,linewidth=1, edgecolor='black', facecolor='gray')
+PosicionXRect1 = max(B,L)/2 - max(bcol,hcol)/2 - d/2
+PosicionXRect2 = max(B,L)/2 + max(bcol,hcol)/2 + d/2
+AnchoSc = max(hcol,bcol)+d
+
+BoSc = patches.Rectangle((PosicionXRect1,0),AnchoSc,hzapata,linewidth=1, edgecolor='black', facecolor='red',alpha=0.3)
+
+#Cota ancho efectivo
+
+ax11.plot([PosicionXRect1, PosicionXRect2], [-0.25,-0.25], color='blue', lw=1)  # Línea horizontal de cota
+ax11.plot(PosicionXRect1, -0.25, 'bo',markersize=3)  # Punto en la intersección inferior izquierda
+ax11.plot(PosicionXRect2,-0.25, 'bo',markersize=3)  # Punto en la intersección inferior derecha
+ax11.text(max(B,L)/2, -0.375, f'{bcol+d} m', ha='center', va='center', fontsize=7,fontweight='bold',color='blue')
+
+#Cota de d/2
+
+ax11.plot([max(B,L)/2+max(hcol,bcol)/2, max(B,L)/2+max(hcol,bcol)/2+d/2], [hzapata+0.25,hzapata+0.25], color='blue', lw=1)  
+ax11.plot(max(B,L)/2+max(hcol,bcol)/2, hzapata+0.25, 'bo',markersize=3)  
+ax11.plot(max(B,L)/2+max(hcol,bcol)/2+d/2,hzapata+0.25, 'bo',markersize=3)
+
+ax11.plot([max(B,L)/2-max(hcol,bcol)/2, max(B,L)/2-max(hcol,bcol)/2-d/2], [hzapata+0.25,hzapata+0.25], color='blue', lw=1)  
+ax11.plot(max(B,L)/2-max(hcol,bcol)/2, hzapata+0.25, 'bo',markersize=3)  
+ax11.plot(max(B,L)/2-max(hcol,bcol)/2-d/2,hzapata+0.25, 'bo',markersize=3)
+ax11.text((max(B,L)/2-max(hcol,bcol)/2 + max(B,L)/2+max(hcol,bcol)/2+d/2)/2+0.12, hzapata+0.35, f'{d/2} m', ha='left', va='center', fontsize=7,fontweight='bold',color='blue')
+ax11.text((max(B,L)/2-max(hcol,bcol)/2 + max(B,L)/2-max(hcol,bcol)/2-d/2)/2-0.12, hzapata+0.35, f'{d/2} m', ha='center', va='center', fontsize=7,fontweight='bold',color='blue')
+
+x_flecha_VactB = max(B,L)/2 - max(bcol,hcol)-d/2 -0.10
+x_flecha_VresB = max(B, L)/2 + max(bcol,hcol) + d/2+0.10
+x_texto_VactB = max(B,L)/2 - max(bcol,hcol)-d/2 -0.20
+x_texto_VresB =	max(B, L)/2 + max(bcol,hcol) + d/2+0.20
+
+ax11.plot([x_flecha_VactB, x_flecha_VactB], [-0.15, hzapata+0.15], color='red', lw=1)
+ax11.annotate('', xy=(x_flecha_VactB, -0.2), xytext=(x_flecha_VactB, 0.15), arrowprops=dict(arrowstyle='->', color='red', lw=1.2))
+ax11.plot([x_flecha_VresB, x_flecha_VresB], [-0.15, hzapata+0.15], color='blue', lw=1)
+ax11.annotate('', xy=(x_flecha_VresB, hzapata+0.20), xytext=(x_flecha_VresB, hzapata-0.05), arrowprops=dict(arrowstyle='->', color='blue', lw=1.2))
+ax11.text(x_texto_VactB, -0.15, f'Vactuante={V2a} Kn', ha='right', va='center', fontsize=7, color='red')
+ax11.text(x_texto_VresB, hzapata+0.15, f'Vresistente={fiVcbid} Kn', ha='left', va='center', fontsize=7, color='blue')
+ax11.add_patch(zapataElevL)
+ax11.add_patch(ColElevL)
+ax11.add_patch(BoSc)
+ax11.set_xlim(-1, L+ 1)
+ax11.set_ylim(-1, Df + 1)
+ax11.set_aspect('equal')
+plt.axis('off')
+
+#Guardado en archivo temporal:
+buf_VPunzoElev = BytesIO()
+fig.savefig(buf_VPunzoElev, format='png', dpi=300, bbox_inches='tight')
+buf_VPunzoElev.seek(0)
+img_VPunzoElev = Image(buf_VPunzoElev, width=350, height=250) 
+
+#Condicional para mostrar graficos
+
+if Mostrar_graficos=='Si':
+	plt.show()
+else:
+	plt.close('all')
+
+####################################################################### GENERACION DE INFORME #################################################3
+# Crear documento
+doc = SimpleDocTemplate("Informe_Zapata.pdf", pagesize=A4)
+elements = []
+
+# Estilos de texto
+styles = getSampleStyleSheet()
+styles.add(ParagraphStyle(name='TituloPrincipal', fontSize=14, leading=22,fontName='Helvetica-Bold', alignment=1, spaceAfter=20))
+styles.add(ParagraphStyle(name='DatosProyecto', fontSize=11, leading=14, spaceAfter=8))
+styles.add(ParagraphStyle(name='TituloCentrado',fontSize=11,fontName='Helvetica-Bold',spaceAfter=12 , leading=14,alignment=1))
+styles.add(ParagraphStyle(name='TablaVerif',fontSize=9,leading=14, spaceAfter=8))
+styles.add(ParagraphStyle(name='TituloIzquierda', fontSize=11, fontName='Helvetica-Bold', spaceAfter=12, leading=14, alignment=0))
+
+
+# Título
+titulo = Paragraph("VERIFICACION DE ZAPATA AISLADA NEC 2015", styles['TituloPrincipal'])
+elements.append(titulo)
+
+# Datos del proyecto
+datos = {
+    "Proyecto": Proyecto,
+    "Ubicación": Ubicacion,
+    "Fecha": Fecha,
+    "Usuario": Usuario,
+    "Autor del Codigo": "Ing. Pablo Padilla C (PPC INGENIERIA)"
+}
+
+for key, value in datos.items():
+    linea = Paragraph(f"<b>{key}:</b> {value}", styles['DatosProyecto'])
+    elements.append(linea)
+
+# Estructura en forma de lista de listas para la tabla
+datos_plinto = [
+    ["Parámetro", "Valor", "Unidad"],
+    ["Lado mayor (B)", f"{B:.2f}", "[m]"],
+    ["Lado menor (L)", f"{L:.2f}", "[m]"],
+    ["Peralte (h)", f"{hzapata:.2f}", "[m]"],
+    ["Recubrimiento al eje (rec)", f"{Df}", "[m]"],
+    ["Profundidad de desplante (Df)", f"{Df}", "[m]"],
+    ["H columna (hcol)", f"{hcol}", "[m]"],
+    ["B columna (bcol)", f"{bcol}", "[m]"],
+    ["f'c", f"{fc:.2f}", "[MPa]"],
+    ["fy", f"{fy}", "[MPa]"],
+    ["q_admisible", f"{qa}", "[kPa]"],
+    ["Carga axial de servicio (Ps)", f"{Ps}", "[kN]"],
+    ["Carga axial ultima (Pu)", f"{Ps}", "[kN]"],
+    ["Momento de servicio en x (Msx)", f"{Msx}", "[kN*m]"],
+    ["Momento de servicio en y (Msy)", f"{Msy}", "[kN*m]"],
+    ["Momento de ultimo en x (Mux)", f"{Mux}", "[kN*m]"],
+    ["Momento de ultimo en y (Muy)", f"{Muy}", "[kN*m]"],
+    ["Diametro de la varilla (Dvar)", f"{Dvarilla}", "[mm]"]
+]
+
+# === Tabla de verificación de estados ===
+verificaciones = [
+    ["Verificación de esfuerzos en el suelo sentido B", f"qsmaxB = {max(qs1y,qs2y)} KPa < qa = {qa} KPa", "OK" if qs1y < qa else "FALLA"],
+    ["Verificación de esfuerzos en el suelo sentido L", f"qsmaxL = {max(qs1x,qs2x)} KPa < qa = {qa} KPa", "OK" if qs1x < qa else "FALLA"],
+    ["Corte Unidireccional Sentido B", f"V1aB = {V1aB} kN < φVn = {FiVnB} kN", "OK" if V1aB < FiVnB else "FALLA"],
+    ["Corte Unidireccional Sentido L", f"V1aL = {V1aL} kN < φVn = {FiVnL} kN", "OK" if V1aL < FiVnL else "FALLA"],
+    ["Corte por punzonamiento", f"V2a = {V2a} kN {'<' if V2a < fiVcbid else '>'} φVc = {fiVcbid} kN", "OK" if V2a < fiVcbid else "FALLA"],
+    ["Armado a Flexión sentido B", f"Asreqx = {Asreqx} [cm2] ; Asmin = {Asminx} [cm2]", "N/A"],
+    ["Armado a Flexión sentido L", f"Asreqy = {Asreqy} [cm2] ; Asmin = {Asminy} [cm2]", "N/A"]
+]
+
+# Encabezados de tabla
+tabla_estado = [[
+    Paragraph('<font color="white"><b>Verificación</b></font>', styles['TablaVerif']),
+    Paragraph('<font color="white"><b>Resultado</b></font>', styles['TablaVerif']),
+    Paragraph('<font color="white"><b>Estado</b></font>', styles['TablaVerif'])
+]]
+
+# Agregar filas
+for verif, resultado, estado in verificaciones:
+    color_estado = colors.green if estado == "OK" else colors.red
+    fila = [
+        Paragraph(verif, styles['TablaVerif']),
+        Paragraph(resultado, styles['TablaVerif']),
+        Paragraph(f'<font color="{color_estado}"><b>{estado}</b></font>', styles['TablaVerif'])
+    ]
+    tabla_estado.append(fila)
+
+# Tabla como tal
+tabla_verificaciones = Table(tabla_estado, hAlign='CENTER', colWidths=[220, 180, 80])
+tabla_verificaciones.setStyle(TableStyle([
+ 	('BACKGROUND', (0,0), (-1,0), colors.grey),
+    ('ALIGN',(1,1),(-1,-1),'CENTER'),
+    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+    ('FONTSIZE', (0, 0), (-1, -1), 8),  # Texto más pequeño
+    ('TOPPADDING', (0, 0), (-1, -1), 2),
+    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ('GRID', (0,0), (-1,-1), 0.3, colors.black)
+]))
+
+# Crear la tabla 
+tabla = Table(datos_plinto, hAlign='CENTER') #Tabla de resultados
+tabla.setStyle(TableStyle([
+    ('BACKGROUND', (0,0), (-1,0), colors.grey),
+    ('TEXTCOLOR',(0,0),(-1,0),colors.whitesmoke),
+    ('ALIGN',(1,1),(-1,-1),'CENTER'),
+    ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+    ('FONTSIZE', (0, 0), (-1, -1), 8),  # Texto más pequeño
+    ('TOPPADDING', (0, 0), (-1, -1), 2),
+    ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
+    ('GRID', (0,0), (-1,-1), 0.3, colors.black)
+]))
+
+#TEXTOS PARA EL DOCUMENTO:
+
+#VERIFICACION ESFUERZO DE SERVICIO EN B
+
+texto_esfs_B = "Esfuerzos de servicio en B:\n\n"
+
+LimExcy = round(B/6, 2)
+ey = round(np.abs(Msy)/Ps, 3)
+
+texto_esfs_B += f"Límite de excentricidad (B/6) =  {LimExcy} [m]\n"
+texto_esfs_B += f"Excentricidad ey =  {ey} [m]\n"
+
+qs1y = round(Ps/A*(1+6*ey/B), 2)
+qs2y = round(Ps/A*(1-6*ey/B), 2)
+
+texto_esfs_B += f"qs1y =  {qs1y} [KPa]\n"
+texto_esfs_B += f"qs2y =  {qs2y} [KPa]\n"
+
+if max(qs1y, qs2y) < qa:
+    texto_esfs_B += "*OK: Los esfuerzos en el suelo son MENORES que el esfuerzo admisible\n"
+else:
+    texto_esfs_B += "*ERROR: Los esfuerzos en el suelo son MAYORES que el esfuerzo admisible\n"
+
+if LimExcy > ey:
+    texto_esfs_B += "*OK: Todos los esfuerzos son en compresión para el Momento en y\n"
+    a_B = B
+else:
+    texto_esfs_B += "*AVISO: Existen esfuerzos a tracción para el Momento en y\n"
+    a_B = 3*(B/2 - ey)
+
+texto_esfs_B += f"Longitud efectiva de contacto (a)= {round(a_B, 2)} [m]\n"
+
+#VERIFICACION ESFUERZO DE SERVICIO EN B
+
+texto_esf_L = "Esfuerzos de servicio en L:\n\n"
+
+LimExcx = round(L / 6, 2)
+ex = round(abs(Msx) / Ps, 3)
+texto_esf_L += f"Límite de excentricidad (L/6) = {LimExcx} [m]\n"
+texto_esf_L += f"Excentricidad ex = {ex} [m]\n"
+
+qs1x = round(Ps / A * (1 + 6 * ex / B), 2)
+qs2x = round(Ps / A * (1 - 6 * ex / B), 2)
+texto_esf_L += f"qs1x = {qs1x} [KPa]\n"
+texto_esf_L += f"qs2x = {qs2x} [KPa]\n"
+
+if max(qs1x, qs2x) < qa:
+    texto_esf_L += "*OK: Los esfuerzos en el suelo son MENORES que el esfuerzo admisible\n"
+else:
+    texto_esf_L += "*ERROR: Los esfuerzos en el suelo son MAYORES que el esfuerzo admisible\n"
+
+if LimExcx > ex:
+    texto_esf_L += "*OK: Todos los esfuerzos son en compresión para el Momento en x\n"
+    a_L = L
+    texto_esf_L += f"Longitud efectiva de contacto (a) = {a_L:.2f} [m]\n"
+else:
+    texto_esf_L += "*AVISO: Existen esfuerzos a tracción para el Momento en x\n"
+    a_L = round(3 * (L / 2 - ex), 2)
+    texto_esf_L += f"Longitud efectiva de contacto (a) = {a_L:.2f} [m]\n"
+
+# === Texto: Esfuerzos Últimos en B ===
+texto_esf_ult_B = "Esfuerzos Últimos de la zapata en B:\n\n"
+texto_esf_ult_B += f"Excentricidad euy = {euy} [m]\n"
+texto_esf_ult_B += f"qu1y = {qu1y} [KN/m2]\n"
+texto_esf_ult_B += f"qu2y = {qu2y} [KN/m2]\n"
+texto_esf_ult_B += f"Longitud efectiva de contacto (a) = {a_B} [m]\n"
+
+
+
+
+# === Texto: Esfuerzos Últimos en L ===
+texto_esf_ult_L = "Esfuerzos Últimos de la zapata en L:\n\n"
+texto_esf_ult_L += f"Excentricidad eux = {eux} [m]\n"
+texto_esf_ult_L += f"qu1x = {qu1x} [KN/m2]\n"
+texto_esf_ult_L += f"qu2x = {qu2x} [KN/m2]\n"
+texto_esf_ult_L += f"Longitud efectiva de contacto (a) = {a_L} [m]\n"
+
+# === Texto: Anchos de Análisis ===
+texto_anchos = "ANCHOS DE ANÁLISIS:\n\n"
+texto_anchos += f"Ala_x = {Ala_x} [m]\n"
+texto_anchos += f"Ala_y = {Ala_y} [m]\n"
+
+texto_corteB = "VERIFICACIÓN DE CORTANTE UNIDIRECCIONAL SENTIDO B:<br/><br/>"
+texto_corteB += f"Esfuerzo cortante actuante unidireccional en B qaB = {q1aB} [kN/m²]<br/>"
+texto_corteB += f"Fuerza cortante actuante unidireccional en B V1aB = {V1aB} [kN]<br/>"
+texto_corteB += f"Fuerza cortante resistente unidireccional en B φVn = {FiVnB} [kN]<br/>"
+
+if FiVnB > V1aB:
+    VerifVB = "La zapata RESISTE el cortante unidireccional en el sentido B"
+    texto_corteB += f"{FiVnB} > {V1aB}<br/>"
+else:
+    VerifVB = "La zapata FALLA por cortante unidireccional en el sentido B"
+    texto_corteB += f"{FiVnB} < {V1aB}<br/>"
+
+texto_corteB += f"Verificación: <b>{VerifVB}</b><br/><br/>"
+
+
+
+texto_corteL = "VERIFICACIÓN DE CORTANTE UNIDIRECCIONAL SENTIDO L:<br/><br/>"
+texto_corteL += f"Esfuerzo cortante actuante unidireccional en L qaL = {q1aL} [kN/m²]<br/>"
+texto_corteL += f"Fuerza cortante actuante unidireccional en L V1aL = {V1aL} [kN]<br/>"
+texto_corteL += f"Fuerza cortante resistente unidireccional en L φVn = {FiVnL} [kN]<br/>"
+
+if FiVnL > V1aL:
+    VerifVL = "La zapata RESISTE el cortante unidireccional en el sentido L"
+    texto_corteL += f"{FiVnL} > {V1aL}<br/>"
+else:
+    VerifVL = "La zapata FALLA por cortante unidireccional en el sentido L"
+    texto_corteL += f"{FiVnL} < {V1aL}<br/>"
+
+texto_corteL += f"Verificación: <b>{VerifVL}</b><br/><br/>"
+
+texto_punzonamiento = "VERIFICACIÓN DE CORTANTE POR PUNZONAMIENTO:<br/><br/>"
+texto_punzonamiento += f"Área efectiva Aeff = {Aeff} [m²]<br/>"
+texto_punzonamiento += f"Perímetro de la sección crítica bo = {bo} [m]<br/>"
+texto_punzonamiento += f"Esfuerzo actuante bidireccional qabid = {qabid} [kN/m²]<br/>"
+texto_punzonamiento += f"Fuerza cortante actuante V2a = {V2a} [kN]<br/>"
+texto_punzonamiento += f"Fuerza cortante resistente φVc = {fiVcbid} [kN]<br/>"
+
+if fiVcbid > V2a:
+    VerifVbid = "La zapata RESISTE el cortante por punzonamiento"
+    texto_punzonamiento += f"{fiVcbid} > {V2a}<br/>"
+else:
+    VerifVbid = "La zapata FALLA por cortante por punzonamiento"
+    texto_punzonamiento += f"{fiVcbid} < {V2a}<br/>"
+
+texto_punzonamiento += f"Verificación: <b>{VerifVbid}</b><br/><br/>"
+
+texto_flexionB = "DISEÑO A FLEXIÓN SENTIDO B:<br/><br/>"
+texto_flexionB += f"quMx = {quMx} [kN/m²]<br/>"
+texto_flexionB += f"AMx = {AMx} [m²]<br/>"
+texto_flexionB += f"FMx = {FMx} [kN]<br/>"
+texto_flexionB += f"Momento último en B (MomUx) = {MomUx} [kN·m]<br/>"
+texto_flexionB += f"Momento unitario (MOMUX) = {MomUxUnit} [kN·m]<br/><br/>"
+
+texto_flexionB += f"Acero mínimo Asminx = {Asminx} [cm²/m]<br/>"
+texto_flexionB += f"Acero requerido Asreqx = {Asreqx} [cm²/m]<br/>"
+texto_flexionB += f"Acero provisto Asx = {Asx} [cm²/m]<br/><br/>"
+
+texto_flexionB += f"Diámetro de varilla = {Dvarilla} [mm]<br/>"
+texto_flexionB += f"Número de barras por metro (unitario) = {Nbarrasunitx} [u/m]<br/>"
+texto_flexionB += f"Número total de barras = {Nbarrasx} [u]<br/>"
+texto_flexionB += f"Espaciamiento entre barras = {Espaciamientox} [cm]<br/><br/>"
+
+texto_flexionB += f"<b>Refuerzo en sentido B:</b> 1 Φ {Dvarilla} @ {Espaciamientox} cm<br/><br/>"
+
+texto_flexionL = "DISEÑO A FLEXIÓN SENTIDO L:<br/><br/>"
+texto_flexionL += f"quMy = {quMy} [kN/m²]<br/>"
+texto_flexionL += f"AMy = {AMy} [m²]<br/>"
+texto_flexionL += f"FMy = {FMy} [kN]<br/>"
+texto_flexionL += f"Momento último en L (MomUy) = {MomUy} [kN·m]<br/>"
+texto_flexionL += f"Momento unitario (MOMUY) = {MomUyUnit} [kN·m]<br/><br/>"
+
+texto_flexionL += f"Acero mínimo Asminy = {Asminy} [cm²/m]<br/>"
+texto_flexionL += f"Acero requerido Asreqy = {Asreqy} [cm²/m]<br/>"
+texto_flexionL += f"Acero provisto Asy = {Asy} [cm²/m]<br/><br/>"
+
+texto_flexionL += f"Diámetro de varilla = {Dvarilla} [mm]<br/>"
+texto_flexionL += f"Número de barras por metro (unitario) = {Nbarrasunity} [u/m]<br/>"
+texto_flexionL += f"Número total de barras = {Nbarrasy} [u]<br/>"
+texto_flexionL += f"Espaciamiento entre barras = {Espaciamientoy} [cm]<br/><br/>"
+
+texto_flexionL += f"<b>Refuerzo en sentido L:</b> 1 Φ {Dvarilla} @ {Espaciamientoy} cm<br/><br/>"
+
+texto_longitud_desarollo = "LONGITUD DE DESARROLLO:<br/><br/>"
+texto_longitud_desarollo += f"Ld = {Ld} [m]<br/>"
+texto_longitud_desarollo += f"Aviso 1: {VerifLd}<br/>"
+texto_longitud_desarollo += "Aviso 2: Queda a criterio del usuario colocar o no ganchos en los extremos<br/>"
+
+texto_longitud_desarollo += f"Longitud del gancho: {Lg} [m]<br/><br/>"
+
+
+##################################################################################################################################
+# Agregar título y tabla al PDF
+elements.append(Spacer(1, 12))
+elements.append(Paragraph("Datos de Ingreso del Plinto:", styles['TituloCentrado']))
+elements.append(tabla)
+elements.append(Spacer(1, 12))
+elements.append(Paragraph("Verificaciones Básicas:", styles['TituloCentrado']))
+elements.append(Spacer(1, 6))
+elements.append(tabla_verificaciones) 
+elements.append(PageBreak())
+
+elements.append(img_EServB)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_esfs_B.replace('\n', '<br/>'), styles['DatosProyecto'])) #RESULTADOS ESFUERZOS SERVICIO B
+elements.append(Spacer(1, 6))
+
+elements.append(img_EServL)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_esf_L.replace('\n', '<br/>'), styles['DatosProyecto'])) #RESULTADOS ESFUERZOS SERVICIO B
+elements.append(Spacer(1, 6))
+
+elements.append(img_EUB)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_esf_ult_B.replace('\n', '<br/>'), styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+elements.append(img_EUL)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_esf_ult_L.replace('\n', '<br/>'), styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+elements.append(img_Aanalisis)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_anchos.replace('\n', '<br/>'), styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+elements.append(img_V1B)
+elements.append(PageBreak())
+elements.append(Paragraph(texto_corteB, styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+elements.append(img_V1L)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_corteL, styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+elements.append(img_VPunzoplanta)
+elements.append(Spacer(1, 6))
+elements.append(img_VPunzoElev)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_punzonamiento, styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+elements.append(img_ElevB)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_flexionB, styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+
+elements.append(img_ElevL)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_flexionL, styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+elements.append(img_planta1)
+elements.append(Spacer(1, 6))
+elements.append(Paragraph(texto_longitud_desarollo, styles['DatosProyecto']))
+elements.append(Spacer(1, 6))
+
+
+# Espacio final
+elements.append(Spacer(1, 12))
+
+# Construcción del documento
+doc.build(elements)
